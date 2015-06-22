@@ -5,6 +5,17 @@ cchan是基于mongoose、unqlite的匿名版服务器。
 
 cchan目前仍是一个非常早期的预览版本，代码基本不会对运行结果进行检查，这将导致潜在Unhandled Exceptions的出现。即便短时间内没有问题，这也是非常要命的。
 
+编译cchan
+---------
+cchan在`Windows 8.1`和`Visual Studio 2013`下编译通过，若要在Linux平台下编译，请使用GCC 4.8以上的版本。
+
+请在64位系统中进行编译。
+
+cchan的推荐运行平台为`Windows Sever 2012`和`Windows Sever 2008`，通过修改VS中的`Platform Toolset`为`Visual Studio 2013 - Windows XP (v120_xp)`可以让cchan在`Windows Sever 2003`下运行，但*实测后BUG太多不推荐*。
+
+
+启动cchan
+---------
 首次启动cchan时（即`sql.exe`），请务必遵循以下步骤：
 
 1. 请首先在运行目录中新建`images`目录。
