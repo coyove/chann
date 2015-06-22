@@ -23,6 +23,7 @@ char *html_header =
 "<html>"
 "<head>"
 "<meta charset='UTF-8'/><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'/>"
+"<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"/>"
 "<title>%s</title>"
 "<style>"
 ".header {background:#F0E0D6; display:table; padding: 0.2em}"
@@ -59,11 +60,3 @@ char *html_header =
 "</head>"
 "<body>"
 "<div style='text-align: center'><a href='/'><h1>%s</h1></a></div>";
-
-char* imgadj =
-"<script type = \"text/javascript\">"
-"	var imgs = document.getElementsByClassName('imgs');"
-"	for (i = 0; i < imgs.length; ++i){"
-"		console.log(imgs[i].width);"
-"	}"
-"</script>";

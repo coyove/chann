@@ -229,7 +229,6 @@ void showThreads(mg_connection* conn, long startID, long endID){
 		}
 	}
 	//mg_send_data(conn, "</tr></table>", 13);
-	mg_printf_data(conn, imgadj);
 	mg_printf_data(conn, "<br/><br/>");
 	
 	clock_t endc = clock();
