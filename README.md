@@ -32,6 +32,6 @@ cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。�
 
 `watch.bat`和`start-server.bat`为启动服务器的脚本，**推荐使用`watch.bat`启动服务器而不是直接运行`sql.exe`**。其中：
 
-* `watch.bat`为监视脚本，其每隔10s检测`sql.exe`是否异常退出，并通过启动`start-server.bat`来打开服务器。
-* `start-server.bat`为启动脚本，其首先打开`ssl_wrapper.exe`将443端口的数据重定向至8080端口，然后启动`sql.exe`。
+* `watch.bat`为监视脚本，其每隔10s检测`sql.exe`是否异常退出，（如果异常退出）通过打开`start-server.bat`来启动cchan。
+* `start-server.bat`为启动脚本，其首先启动`ssl_wrapper.exe`将443端口的数据重定向至8080端口，然后启动`sql.exe`。
 * `cert.pem`为测试用的ssl证书。
