@@ -5,7 +5,7 @@ cchan是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http:/
 
 cchan目前仍是一个非常早期的预览版本，代码基本不会对运行结果进行检查，这将导致潜在Unhandled Exceptions的出现。即便短时间内没有问题，这也是非常要命的。
 
-[Demo](http://120.24.50.171:8080/)
+[Demo](http://120.24.50.171:8080/)，托管于阿里云ECS，配置：单核、1G内存、Server 2012 x64 中文标准版、峰值带宽100Mbps。
 
 编译cchan
 ---------
@@ -15,6 +15,8 @@ cchan在`Windows 8.1`和`Visual Studio 2013`下编译通过，若要在Linux平�
 
 cchan的推荐运行平台为`Windows Sever 2012`和`Windows Sever 2008`，通过修改VS中的`Platform Toolset`为`Visual Studio 2013 - Windows XP (v120_xp)`可以让cchan在`Windows Sever 2003`下运行，但*实测后BUG太多不推荐*。
 
+cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。所以在修改代码时，请*不要输入任何中文*，请*输入中文字符的转义代码*。
+[汉字转化unicode编码](http://www.bangnishouji.com/tools/chtounicode.html)
 
 启动cchan
 ---------
