@@ -91,8 +91,8 @@ void sendThread(mg_connection* conn, struct Thread* r, bool reply = false, bool 
 	//flag to (reply to reply)
 	char *reply_link;
 	if (show_reply){ //display the reply link?
-		if (reply && r->childThread)
-			reply_link = "[<a class='red' href=\"/thread/%d\"><b>Reply</b></a>]";
+		if (reply && r->childThread) // dose it have reply to reply?
+			reply_link = "[<a class='red' href=\"/thread/%d\"><b>More</b></a>]";
 		else
 			reply_link = "[<a href=\"/thread/%d\"><b>Reply</b></a>]";
 	}
@@ -143,12 +143,12 @@ void sendThread(mg_connection* conn, struct Thread* r, bool reply = false, bool 
 
 	len = sprintf(tmp,
 		"<div %s>"
-		"%s"
-		"No.%d%s <font color='#228811'><b>%s</b></font> %s ID:%s %s"
+		"%s" 
+		"<a href='/thread/%d'>No.%d</a>%s <font color='#228811'><b>%s</b></font> %s ID:%s %s"
 		"<div class='quote'>%s</div>"
 		"%s"
 		"</div>",
-		width1, display_image, r->threadID, can_delete, r->author, timetmp, display_ssid, crl,
+		width1, display_image, r->threadID, r->threadID, can_delete, r->author, timetmp, display_ssid, crl,
 				cut_long ? c_content : content, sage);
 
 	mg_send_data(conn, tmp, len);
