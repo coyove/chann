@@ -62,6 +62,8 @@ int resetDatabase(unqlite *pDb){
 
 long findParent(unqlite *pDb, long startID){
 	struct Thread* b = readThread_(pDb, startID);
+	if (b->state == 'm') return 0;
+	if (b->state == 'd') return -1;
 	if (b->parentThread) return b->parentThread;
 
 	while (b->nextThread != startID){
@@ -93,7 +95,7 @@ int deleteThread(unqlite *pDb, long tid){
 			writeThread(pDb, tp->threadID, tp, false);
 		}
 
-		t->state == 'd';
+		t->state = 'd';
 		writeThread(pDb, t->threadID, t, false);
 	}
 
@@ -104,6 +106,7 @@ int deleteThread(unqlite *pDb, long tid){
 		writeString(pDb, contentkey, "<font color='red'>Deleted</font>", false);
 
 		strncpy(t->content, contentkey, 16);
+		t->state = 'd';
 		writeThread(pDb, t->threadID, t, false);
 	}
 

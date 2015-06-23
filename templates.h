@@ -52,11 +52,9 @@ char *html_header =
 "color: white;"
 "padding: 0.1em;"
 "border-radius: 0.3em;"
+"font-size:10px;"
 "}"
 "</style>"
-"<script type='text/javascript'>"
-"function askdel(n){if(confirm('Delete thread No.' + n + '?')) window.location = '/delete/' + n;}"
-"</script>"
 "</head>"
 "<body>"
 "<div style='text-align: center'><a href='/'><h1>%s</h1></a></div>";

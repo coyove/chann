@@ -105,13 +105,13 @@ void sendThread(mg_connection* conn, struct Thread* r, bool reply = false, bool 
 	const char *sage = r->state == 's' ? "<font color='red'><b>(sage)</b></font>" : "";
 
 	//display the delete link
-	char can_delete[256];
+	/*char can_delete[256];
 	if (!reply){
 		int len3 = sprintf(can_delete, "<small class='del'>[<a href=\"javascript:askdel(%d)\">x</a>]</small>", r->threadID);
 		can_delete[len3] = 0;
 	}
 	else
-		strncpy(can_delete, "\0", 1);
+		strncpy(can_delete, "\0", 1);*/
 
 	//display the red name
 	char display_ssid[64];
@@ -143,12 +143,12 @@ void sendThread(mg_connection* conn, struct Thread* r, bool reply = false, bool 
 
 	len = sprintf(tmp,
 		"<div %s>"
-		"%s" 
-		"<a href='/thread/%d'>No.%d</a>%s <font color='#228811'><b>%s</b></font> %s ID:%s %s"
+		"%s"
+		"<a href='/thread/%d'>No.%d</a>&nbsp;<font color='#228811'><b>%s</b></font> %s ID:%s %s"
 		"<div class='quote'>%s</div>"
 		"%s"
 		"</div>",
-		width1, display_image, r->threadID, r->threadID, can_delete, r->author, timetmp, display_ssid, crl,
+		width1, display_image, r->threadID, r->threadID, r->author, timetmp, display_ssid, crl,
 				cut_long ? c_content : content, sage);
 
 	mg_send_data(conn, tmp, len);
@@ -336,10 +336,37 @@ int renewCookie(mg_connection* conn, const char* username){
 	return 1;
 }
 
+void userDeleteThread(mg_connection* conn, long tid, bool admin = false){
+	char ssid[128], username[10];
+	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
+	vector<string> zztmp = split(string(ssid), string("|"));
+	if (zztmp.size() != 3){
+		mg_printf_data(conn, html_error, "Your cookie is invalid");
+		return;
+	}
+
+	strncpy(username, zztmp[0].c_str(), 10);
+	char *finalssid = generateSSID(username, zztmp[2].c_str());
+	if (strcmp(finalssid, zztmp[1].c_str()) == 0){
+		struct Thread* t = readThread_(pDb, tid);
+
+		if (strcmp(t->ssid, username) == 0 || admin){
+			deleteThread(pDb, tid);
+			mg_printf_data(conn, "You have deleted thread No.%d", tid);
+			printf("Thread Deleted: [%d] at %s", tid, nowNow());
+		}
+		else{
+			mg_printf_data(conn, html_error, "Your cookie doesn't match the thread");
+			printf("Trying to Delete Thread: [%d] at %s", tid, nowNow());
+		}
+	}
+}
+
 void postSomething(mg_connection* conn, const char* uri){
 	char var1[64], var2[32768], var3[64], var4[16];
 	bool sage = false;
 	bool fileAttached = false;
+	bool user_delete = false;
 	const char *data;
 	int data_len, ofs = 0, mofs = 0;
 	char var_name[100], file_name[100];
@@ -419,6 +446,19 @@ void postSomething(mg_connection* conn, const char* uri){
 		mg_printf_data(conn, html_error, "Please enter something");
 		return;
 	}
+	if (strcmp(var2, "delete") == 0){//user trying to delete a thread/reply
+		long id = extractLastNumber(conn);
+		struct Thread * t = readThread_(pDb, id); //what he replies to is which he wants to delete
+		if (strcmp(var3, admin_pass) == 0)
+			userDeleteThread(conn, id, true);
+		else if (strcmp(var3, t->email) == 0)
+			userDeleteThread(conn, id);
+		else
+			mg_printf_data(conn, html_error, "Failed");
+
+		return;
+	}
+
 
 	char ssid[128], expire[128], expire_epoch[128], username[10];
 	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
@@ -548,12 +588,17 @@ static void send_reply(struct mg_connection *conn) {
 		long id = extractLastNumber(conn);
 		long pid = findParent(pDb, id);
 
-		if (pid)
-			mg_printf_data(conn, "<a href='/thread/%d'>&lt;&lt; No.%d</a><hr>", pid, pid);
-		else
-			mg_printf_data(conn, "<a href='/'>&lt;&lt; Homepage</a><hr>");
+		if (pid == -1){
+			mg_printf_data(conn, "This thread has been deleted.");
+		}
+		else{
+			if (pid)
+				mg_printf_data(conn, "<a href='/thread/%d'>&lt;&lt; No.%d</a><hr>", pid, pid);
+			else
+				mg_printf_data(conn, "<a href='/'>&lt;&lt; Homepage</a><hr>");
 
-		showThread(conn, id);
+			showThread(conn, id);
+		}
 		mg_send_data(conn, "</html></body>", 14);
 	}
 	else if (strstr(conn->uri, "/post_reply/")) {
@@ -574,30 +619,7 @@ static void send_reply(struct mg_connection *conn) {
 		mg_printf_data(conn, "Transfer a new cookie: %s", ssid.c_str());
 	}
 	else if (strstr(conn->uri, "/delete/")){
-		long tid = extractLastNumber(conn);
-
-		char ssid[128], username[10];
-		mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-		vector<string> zztmp = split(string(ssid), string("|"));
-		if (zztmp.size() != 3){
-			mg_printf_data(conn, "Your cookie is invalid.");
-			return;
-		}
-
-		strncpy(username, zztmp[0].c_str(), 10);
-		char *finalssid = generateSSID(username, zztmp[2].c_str());
-		if (strcmp(finalssid, zztmp[1].c_str()) == 0){
-			struct Thread* t = readThread_(pDb, tid);
-			if (strcmp(t->ssid, username) == 0 || strstr(conn->uri, admin_pass)){
-				deleteThread(pDb, tid);
-				mg_printf_data(conn, "You have deleted thread No.%d.", tid);
-				printf("Thread Deleted: [%d] at %s", tid, nowNow());
-			}
-			else{
-				mg_printf_data(conn, "Your cookie doesn't match the thread.");
-				printf("Trying to Delete Thread: [%d] at %s", tid, nowNow());
-			}
-		}
+		
 	}
 	else if (strstr(conn->uri, "/sage/")){
 		long tid = extractLastNumber(conn);
