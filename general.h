@@ -9,8 +9,23 @@ extern "C"{
 #include <cstring>
 #include <time.h>
 
+#define MAIN_THREAD		4
+#define THREAD_REPLY	2
+#define SAGE_THREAD		16
+#define LOCKED_THREAD	128
+#define NORMAL_DISPLAY	1
+
 struct Thread{
-	char state;			// thread's state: 'm' = main thread, 's' = sega thread, 'l' = locked thread, 'r' = root thread
+	char state;			// thread's state
+	/*
+		1		|1		|1		|1		|1		|1		|1		|1
+		locked	|----	|----	|sage	|----	|thread	|reply	|normal
+
+		old representation:
+		01101101 = m
+		01100011 = c
+		01100100 = d
+	*/
 	char content[16];	// (pointer) thread's content 
 	char author[64];	// thread's author
 	char email[64];		// author's e-mail

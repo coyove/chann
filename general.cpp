@@ -14,7 +14,7 @@ int resetDatabase(unqlite *pDb){
 	long *key = new long(0);
 	struct Thread *t = new Thread();
 	t->threadID = 0;
-	t->state = 'r';
+	//t->state = 'r';
 	t->nextThread = 0;
 	t->childCount = 0;
 
@@ -29,8 +29,8 @@ int resetDatabase(unqlite *pDb){
 
 long findParent(unqlite *pDb, long startID){
 	struct Thread* b = readThread_(pDb, startID);
-	if (b->state == 'm') return 0;
-	if (b->state == 'd') return -1;
+	if (b->state & MAIN_THREAD) return 0;
+	if (!(b->state & NORMAL_DISPLAY)) return -1;
 	if (b->parentThread) return b->parentThread;
 
 	while (b->nextThread != startID){
@@ -46,9 +46,9 @@ int deleteThread(unqlite *pDb, long tid){
 	struct Thread* tp = readThread_(pDb, t->prevThread);
 	struct Thread* tn = readThread_(pDb, t->nextThread);
 
-	if (t->state == 'd') return 0;
+	if (!(t->state & NORMAL_DISPLAY)) return 0;
 
-	if (t->parentThread == 0 && t->state == 'm'){
+	if (t->parentThread == 0 && t->state & MAIN_THREAD){
 		tn->prevThread = t->prevThread;
 		tp->nextThread = t->nextThread;
 
@@ -62,18 +62,20 @@ int deleteThread(unqlite *pDb, long tid){
 			writeThread(pDb, tp->threadID, tp, false);
 		}
 
-		t->state = 'd';
+		//t->state = 'd';
+		t->state -= NORMAL_DISPLAY;
 		writeThread(pDb, t->threadID, t, false);
 	}
 
-	if (t->state != 'm'){
+	if (!(t->state & MAIN_THREAD)){
 		char contentkey[16];
 		unqlite_util_random_string(pDb, contentkey, 15);
 		contentkey[15] = 0;
 		writeString(pDb, contentkey, "<font color='red'>Deleted</font>", false);
 
 		strncpy(t->content, contentkey, 16);
-		t->state = 'd';
+		//t->state = 'd';
+		t->state -= NORMAL_DISPLAY;
 		writeThread(pDb, t->threadID, t, false);
 	}
 
@@ -97,8 +99,8 @@ int newThread(unqlite *pDb, const char* content, char* author, char* email, char
 	strncpy(t->imgSrc, imgSrc, 16);
 
 	unqlite_commit(pDb);
-	t->state = 'm';
-	if (sega) t->state = 's';
+	t->state = MAIN_THREAD + NORMAL_DISPLAY;
+	if (sega) t->state += SAGE_THREAD;
 
 	time_t rawtime;
 	time(&rawtime);
@@ -142,7 +144,7 @@ int newReply(unqlite *pDb, long id, const char* content, char* author, char* ema
 	struct Thread *t = new Thread();
 	bool reply2reply = false;
 
-	if (r->state == 'c') reply2reply = true;
+	if (r->state & THREAD_REPLY) reply2reply = true;
 
 	char contentkey[16];
 	unqlite_util_random_string(pDb, contentkey, 15);
@@ -156,8 +158,8 @@ int newReply(unqlite *pDb, long id, const char* content, char* author, char* ema
 	strncpy(t->imgSrc, imgSrc, 16);
 
 	unqlite_commit(pDb);
-	t->state = 'c';
-	if (sega) t->state = 's';
+	t->state = THREAD_REPLY + NORMAL_DISPLAY;
+	if (sega) t->state += SAGE_THREAD;
 
 	time_t rawtime;
 	time(&rawtime);
@@ -203,7 +205,7 @@ int newReply(unqlite *pDb, long id, const char* content, char* author, char* ema
 	}
 
 	
-	if (self->prevThread == 0 || self->state == 's' || t->state == 's' || reply2reply){
+	if (self->prevThread == 0 || self->state & SAGE_THREAD || t->state & SAGE_THREAD || reply2reply){
 		//under certain circumstance the thread won't be pushed to the top
 		//1. already at top
 		//2. is a sega thread

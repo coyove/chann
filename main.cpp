@@ -77,7 +77,7 @@ char* generateSSID(const char *user_name, const char* time) {
 }
 
 void sendThread(mg_connection* conn, struct Thread* r, bool reply = false, bool show_reply = true, bool cut_long = false){
-	if (r->state == 'd') return;
+	if (!(r->state & NORMAL_DISPLAY)) return;
 
 	struct tm * timeinfo;
 	char tmp[65536];
@@ -105,8 +105,8 @@ void sendThread(mg_connection* conn, struct Thread* r, bool reply = false, bool 
 	int len2 = sprintf(crl, reply_link, r->threadID); crl[len2] = 0;
 
 	//display the sage flag
-	const char *sage = r->state == 's' ? "<font color='red'><b>(sage)</b></font>" : "";
-	const char *locked = r->state == 'l' ? "<font color='red'><b>(locked)</b></font>" : "";
+	const char *sage = (r->state & SAGE_THREAD && !reply) ? "<font color='red'><b>&#128078;&nbsp;SAGE</b></font><br/>" : "";
+	const char *locked = r->state & LOCKED_THREAD ? "<font color='red'><b>&#128274;&nbsp;Locked</b></font><br/>" : "";
 
 	//display the red name
 	char display_ssid[64];
@@ -470,7 +470,12 @@ void postSomething(mg_connection* conn, const char* uri){
 		struct Thread* t = readThread_(pDb, tid);
 
 		if(findParent(pDb, tid) == 0){
-			t->state = strcmp(var1, "unsage") == 0 ? 'm' : 's';
+			//t->state = strcmp(var1, "unsage") == 0 ? 'm' : 's';
+			if(strcmp(var1, "unsage") == 0)
+				t->state -= SAGE_THREAD;
+			else
+				t->state += SAGE_THREAD;
+
 			writeThread(pDb, tid, t, true);
 			mg_printf_data(conn, "You have %ssaged thread No.%d.", strcmp(var1, "unsage") == 0 ? "un" : "", tid);
 			printf("Thread %sSaged: [%d] at %s", strcmp(var1, "unsage") == 0 ? "un" : "", tid, nowNow());
@@ -485,7 +490,11 @@ void postSomething(mg_connection* conn, const char* uri){
 		struct Thread* t = readThread_(pDb, tid);
 
 		if(findParent(pDb, tid) == 0){
-			t->state = strcmp(var1, "unlock") == 0 ? 'm' : 'l';
+			//t->state = strcmp(var1, "unlock") == 0 ? 'm' : 'l';
+			if(strcmp(var1, "unlock") == 0)
+				t->state -= LOCKED_THREAD;
+			else
+				t->state += LOCKED_THREAD;
 			writeThread(pDb, tid, t, true);
 			mg_printf_data(conn, "You have %slocked thread No.%d.", strcmp(var1, "unlock") == 0 ? "un" : "", tid);
 			printf("Thread %slocked: [%d] at %s", strcmp(var1, "unlock") == 0 ? "un" : "", tid, nowNow());
@@ -581,7 +590,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		long id = extractLastNumber(conn);
 		struct Thread* t = readThread_(pDb, id);
 
-		if(t->state == 'l')
+		if(t->state & LOCKED_THREAD)
 			mg_printf_data(conn, html_error, "You can't reply to a locked thread");
 		else{
 			newReply(pDb, id, tmpcontent.c_str(), var1, var3, username, var4, sage);
@@ -648,11 +657,23 @@ static void send_reply(struct mg_connection *conn) {
 
 		mg_printf_data(conn, "Transfer a new cookie: %s", ssid.c_str());
 	}
-	else if (strstr(conn->uri, "/delete/")){
-		
+	else if (strstr(conn->uri, "/state/")){
+		string url(conn->uri);
+		vector<string> tmp = split(url, "/");
+
+		long newstate = atol(tmp[tmp.size() - 1].c_str());
+		long tid  = atol(tmp[tmp.size() - 2].c_str());
+
+		if (strstr(conn->uri, admin_pass)){
+			struct Thread * t = readThread_(pDb, tid);
+			t->state = newstate;
+			writeThread(pDb, t->threadID, t, true);
+			mg_printf_data(conn, html_error, "Thread's state updated successfully");
+		}else
+			mg_printf_data(conn, html_error, "Your don't have the permission");
 	}
 	else if (strstr(conn->uri, "/sage/")){
-		long tid = extractLastNumber(conn);
+		/*long tid = extractLastNumber(conn);
 
 		struct Thread* t = readThread_(pDb, tid);
 		if (strstr(conn->uri, admin_pass)){
@@ -664,7 +685,7 @@ static void send_reply(struct mg_connection *conn) {
 		else{
 			mg_printf_data(conn, "Your don't have the permission.");
 			printf("Trying to (Un)Sage Thread: [%d] at %s", tid, nowNow());
-		}
+		}*/
 		
 	}
 	else if (strstr(conn->uri, "/ban/")){
