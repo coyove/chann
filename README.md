@@ -5,15 +5,15 @@ cchan是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http:/
 
 cchan目前仍是一个非常早期的预览版本，代码基本不会对运行结果进行检查，这将导致潜在Unhandled Exceptions的出现。即便短时间内没有问题，这也是非常要命的。
 
-[Demo](http://120.24.50.171:8080/)，托管于阿里云ECS，配置：单核、1G内存、Server 2012 x64 中文标准版、峰值带宽100Mbps。
+[Demo](http://h.waifu.cc/)，托管于阿里云ECS，配置：单核、1G内存、Server 2012 x64 中文标准版、峰值带宽100Mbps。
 
 编译cchan
 ---------
-cchan在`Windows 8.1`和`Visual Studio 2013`下编译通过，若要在Linux平台下编译，请使用GCC 4.8以上的版本。
+cchan在`Windows 8.1`和`Visual Studio 2012 Express`下编译通过，若要在Linux平台下编译，请使用GCC 4.8以上的版本。
 
 请在64位系统中进行编译。
 
-cchan的推荐运行平台为`Windows Sever 2012`和`Windows Sever 2008`，通过修改VS中的`Platform Toolset`为`Visual Studio 2013 - Windows XP (v120_xp)`可以让cchan在`Windows Sever 2003`下运行，但*实测后BUG太多不推荐*。
+cchan的推荐运行平台为`Windows Sever 2012`和`Windows Sever 2008`，通过修改VS中的`Platform Toolset`为`Visual Studio 2012 - Windows XP (v110_xp)`可以让cchan在`Windows Sever 2003`下运行，但*实测后BUG太多不推荐*。
 
 cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。所以在修改代码时，请*不要输入任何中文*，请*输入中文字符的转义代码*。
 [汉字转化unicode编码](http://www.bangnishouji.com/tools/chtounicode.html)
@@ -29,9 +29,3 @@ cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。�
 5. 使用命令`-spell XXX`设置管理员密码，默认为随机生成字符串。
 6. 使用命令`-port XXX`设置监听端口。
 7. 其他命令请参考源码。
-
-`watch.bat`和`start-server.bat`为启动服务器的脚本，**推荐使用`watch.bat`启动服务器而不是直接运行`sql.exe`**。其中：
-
-* `watch.bat`为监视脚本，其每隔10s检测`sql.exe`是否异常退出，（如果异常退出）通过打开`start-server.bat`来启动cchan。
-* `start-server.bat`为启动脚本，其首先启动`ssl_wrapper.exe`将443端口的数据重定向至8080端口，然后启动`sql.exe`。
-* `cert.pem`为测试用的ssl证书。
