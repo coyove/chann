@@ -14,3 +14,4 @@ string replaceAll(std::string str, const std::string& from, const std::string& t
 bool endsWith(std::string const &fullString, std::string const &ending);
 bool startsWith(std::string const &fullString, std::string const &start);
 long extractLastNumber(mg_connection* conn);
+void cleanString(string& str);

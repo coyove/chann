@@ -49566,7 +49566,7 @@ static int lhash_read_header(lhash_kv_engine *pEngine,unqlite_page *pHeader)
 	/* Initialiaze the bucket map */
 	pMap = &pEngine->sPageMap;
 	/* Fill in the structure */
-	pMap->iNum = pHeader->pgno;
+	pMap->iNum = pHeader->iPage;
 	/* Next page in the bucket map */
 	SyBigEndianUnpack64(zRaw,&pMap->iNext);
 	zRaw += 8;
@@ -49715,7 +49715,7 @@ static int lhMapWriteRecord(lhash_kv_engine *pEngine,pgno iLogic,pgno iReal)
 		}
 		/* Reflect the change  */
 		pMap->iNext = 0;
-		pMap->iNum = pPage->pgno;
+		pMap->iNum = pPage->iPage;
 		pMap->nRec = 0;
 		pMap->iPtr = 8/* Next page number */+4/* Total records in the map*/;
 		/* Link this page */
@@ -49723,12 +49723,12 @@ static int lhMapWriteRecord(lhash_kv_engine *pEngine,pgno iLogic,pgno iReal)
 		if( rc != UNQLITE_OK ){
 			return rc;
 		}
-		if( pOld->pgno == pEngine->pHeader->pgno ){
+		if( pOld->iPage == pEngine->pHeader->iPage ){
 			/* First page (Hash header) */
-			SyBigEndianPack64(&pOld->zData[4/*magic*/+4/*hash*/+8/* Free page */+8/*current split bucket*/+8/*Maximum split bucket*/],pPage->pgno);
+			SyBigEndianPack64(&pOld->zData[4/*magic*/+4/*hash*/+8/* Free page */+8/*current split bucket*/+8/*Maximum split bucket*/],pPage->iPage);
 		}else{
 			/* Link the new page */
-			SyBigEndianPack64(pOld->zData,pPage->pgno);
+			SyBigEndianPack64(pOld->zData,pPage->iPage);
 			/* Unref */
 			pEngine->pIo->xPageUnref(pOld);
 		}
@@ -49761,7 +49761,7 @@ static int lhMapWriteRecord(lhash_kv_engine *pEngine,pgno iLogic,pgno iReal)
 	if( rc == UNQLITE_OK ){
 		/* Total number of records */
 		pMap->nRec++;
-		if( pPage->pgno == pEngine->pHeader->pgno ){
+		if( pPage->iPage == pEngine->pHeader->iPage ){
 			/* Page one: Always writable */
 			SyBigEndianPack32(
 				&pPage->zData[4/*magic*/+4/*hash*/+8/* Free page */+8/*current split bucket*/+8/*Maximum split bucket*/+8/*Next map page*/],
@@ -49799,7 +49799,7 @@ static int lhPageDefragment(lhpage *pPage)
 			/* No more cells */
 			break;
 		}
-		if( pCell->pPage->pRaw->pgno == pPage->pRaw->pgno ){
+		if( pCell->pPage->pRaw->iPage == pPage->pRaw->iPage ){
 			/* Cell payload if locally stored */
 			zPayload = 0;
 			if( pCell->iOvfl == 0 ){
@@ -50027,7 +50027,7 @@ static int lhCellWriteOvflPayload(lhcell *pCell,const void *pKey,sxu32 nKeylen,.
 	}
 	pFirst = pOvfl;
 	/* Link */
-	pCell->iOvfl = pOvfl->pgno;
+	pCell->iOvfl = pOvfl->iPage;
 	/* Update the cell header */
 	SyBigEndianPack64(&pPage->pRaw->zData[pCell->iStart + 4/*Hash*/ + 4/*Key*/ + 8/*Data*/ + 2 /*Next cell*/],pCell->iOvfl);
 	/* Start the write process */
@@ -50053,7 +50053,7 @@ static int lhCellWriteOvflPayload(lhcell *pCell,const void *pKey,sxu32 nKeylen,.
 				return rc;
 			}
 			/* Link */
-			SyBigEndianPack64(pOvfl->zData,pNew->pgno);
+			SyBigEndianPack64(pOvfl->zData,pNew->iPage);
 			pEngine->pIo->xPageUnref(pOvfl);
 			SyBigEndianPack64(pNew->zData,0); /* Next overflow page on the chain */
 			pOvfl = pNew;
@@ -50072,7 +50072,7 @@ static int lhCellWriteOvflPayload(lhcell *pCell,const void *pKey,sxu32 nKeylen,.
 	}
 	rc = UNQLITE_OK;
 	va_start(ap,nKeylen);
-	pCell->iDataPage = pNew->pgno;
+	pCell->iDataPage = pNew->iPage;
 	pCell->iDataOfft = (sxu16)(zRaw-pNew->zData);
 	/* Write the data page and its offset */
 	SyBigEndianPack64(&pFirst->zData[8/*Next ovfl*/],pCell->iDataPage);
@@ -50108,7 +50108,7 @@ static int lhCellWriteOvflPayload(lhcell *pCell,const void *pKey,sxu32 nKeylen,.
 					return rc;
 				}
 				/* Link */
-				SyBigEndianPack64(pOvfl->zData,pNew->pgno);
+				SyBigEndianPack64(pOvfl->zData,pNew->iPage);
 				pEngine->pIo->xPageUnref(pOvfl);
 				SyBigEndianPack64(pNew->zData,0); /* Next overflow page on the chain */
 				pOvfl = pNew;
@@ -50147,7 +50147,7 @@ static int lhRestorePage(lhash_kv_engine *pEngine,unqlite_page *pPage)
 	}
 	/* Link to the list of free page */
 	SyBigEndianPack64(pPage->zData,pEngine->nFreeList);
-	pEngine->nFreeList = pPage->pgno;
+	pEngine->nFreeList = pPage->iPage;
 	SyBigEndianPack64(&pEngine->pHeader->zData[4/*Magic*/+4/*Hash*/],pEngine->nFreeList);
 	/* All done */
 	return UNQLITE_OK;
@@ -50417,7 +50417,7 @@ static int lhRecordOverwrite(
 				return rc;
 			}
 			/* Link */
-			SyBigEndianPack64(pOvfl->zData,pNew->pgno);
+			SyBigEndianPack64(pOvfl->zData,pNew->iPage);
 			pEngine->pIo->xPageUnref(pOvfl);
 			SyBigEndianPack64(pNew->zData,0); /* Next overflow page on the chain */
 			pOvfl = pNew;
@@ -50578,7 +50578,7 @@ static int lhRecordAppend(
 				return rc;
 			}
 			/* Link */
-			SyBigEndianPack64(pOvfl->zData,pNew->pgno);
+			SyBigEndianPack64(pOvfl->zData,pNew->iPage);
 			pEngine->pIo->xPageUnref(pOvfl);
 			SyBigEndianPack64(pNew->zData,0); /* Next overflow page on the chain */
 			pOvfl = pNew;
@@ -50785,8 +50785,8 @@ static int lhFindSlavePage(lhpage *pPage,sxu64 nAmount,sxu16 *pOfft,lhpage **ppS
 		goto fail;
 	}
 	/* Reflect in the page header */
-	SyBigEndianPack64(&pSlave->pRaw->zData[2/*Cell offset*/+2/*Free block offset*/],pRaw->pgno);
-	pSlave->sHdr.iSlave = pRaw->pgno;
+	SyBigEndianPack64(&pSlave->pRaw->zData[2/*Cell offset*/+2/*Free block offset*/],pRaw->iPage);
+	pSlave->sHdr.iSlave = pRaw->iPage;
 	/* All done */
 	*ppSlave = pNew;
 	return UNQLITE_OK;
@@ -50965,12 +50965,12 @@ static int lhSplit(lhpage *pTarget,int *pRetry)
 	/* Install and write the logical map record */
 	rc = lhMapWriteRecord(pEngine,
 		pEngine->split_bucket + pEngine->max_split_bucket,
-		pRaw->pgno
+		pRaw->iPage
 		);
 	if( rc != UNQLITE_OK ){
 		goto fail;
 	}
-	if( pTarget->pRaw->pgno == pOld->pRaw->pgno ){
+	if( pTarget->pRaw->iPage == pOld->pRaw->iPage ){
 		*pRetry = 1;
 	}
 	/* Perform the split */
@@ -51093,7 +51093,7 @@ retry:
 		rc = lhStoreCell(pPage,pKey,nKeyLen,pData,nDataLen,nHash,1);
 		if( rc == UNQLITE_OK ){
 			/* Install and write the logical map record */
-			rc = lhMapWriteRecord(pEngine,iBucket,pRaw->pgno);
+			rc = lhMapWriteRecord(pEngine,iBucket,pRaw->iPage);
 		}
 		pEngine->pIo->xPageUnref(pRaw);
 		return rc;
@@ -51181,7 +51181,7 @@ static int lhash_write_header(lhash_kv_engine *pEngine,unqlite_page *pHeader)
 	/* Initialiaze the bucket map */
 	pMap = &pEngine->sPageMap;
 	/* Fill in the structure */
-	pMap->iNum = pHeader->pgno;
+	pMap->iNum = pHeader->iPage;
 	/* Next page in the bucket map */
 	SyBigEndianPack64(zRaw,0);
 	zRaw += 8;
@@ -54073,7 +54073,7 @@ static int unixOpen(
   if( pUnused ){
 	  fd = pUnused->fd;
   }else{
-	  pUnused = unqlite_malloc(sizeof(*pUnused));
+	  pUnused = (UnixUnusedFd *)unqlite_malloc(sizeof(*pUnused));
       if( !pUnused ){
         return UNQLITE_NOMEM;
       }
@@ -55426,7 +55426,7 @@ struct Page {
   /* Must correspond to unqlite_page */
   unsigned char *zData;           /* Content of this page */
   void *pUserData;                /* Extra content */
-  pgno pgno;                      /* Page number for this page */
+  pgno iPage;                      /* Page number for this page */
   /**********************************************************************
   ** Elements above are public.  All that follows is private to pcache.c
   ** and should not be accessed by other modules.
@@ -55602,7 +55602,7 @@ static Page * pager_fetch_page(Pager *pPager,pgno page_num)
 		if( pEntry == 0 ){
 			break;
 		}
-		if( pEntry->pgno == page_num ){
+		if( pEntry->iPage == page_num ){
 			return pEntry;
 		}
 		/* Point to the next entry in the colission chain */
@@ -55629,7 +55629,7 @@ static Page * pager_alloc_page(Pager *pPager,pgno num_page)
 	/* Fill in the structure */
 	pNew->pPager = pPager;
 	pNew->nRef = 1;
-	pNew->pgno = num_page;
+	pNew->iPage = num_page;
 	return pNew;
 }
 /*
@@ -55704,7 +55704,7 @@ static int pager_link_page(Pager *pPager,Page *pPage)
 {
 	sxu32 nBucket;
 	/* Install in the corresponding bucket */
-	nBucket = PAGE_HASH(pPage->pgno) & (pPager->nSize - 1);
+	nBucket = PAGE_HASH(pPage->iPage) & (pPager->nSize - 1);
 	pPage->pNextCollide = pPager->apHash[nBucket];
 	if( pPager->apHash[nBucket] ){
 		pPager->apHash[nBucket]->pPrevCollide = pPage;
@@ -55733,7 +55733,7 @@ static int pager_link_page(Pager *pPager,Page *pPage)
 				}
 				pEntry->pNextCollide = pEntry->pPrevCollide = 0;
 				/* Install in the new bucket */
-				iBucket = PAGE_HASH(pEntry->pgno) & (nNewSize - 1);
+				iBucket = PAGE_HASH(pEntry->iPage) & (nNewSize - 1);
 				pEntry->pNextCollide = apNew[iBucket];
 				if( apNew[iBucket] ){
 					apNew[iBucket]->pPrevCollide = pEntry;
@@ -55762,7 +55762,7 @@ static int pager_unlink_page(Pager *pPager,Page *pPage)
 	if( pPage->pPrevCollide ){
 		pPage->pPrevCollide->pNextCollide = pPage->pNextCollide;
 	}else{
-		sxu32 nBucket = PAGE_HASH(pPage->pgno) & (pPager->nSize - 1);
+		sxu32 nBucket = PAGE_HASH(pPage->iPage) & (pPager->nSize - 1);
 		pPager->apHash[nBucket] = pPage->pNextCollide;
 	}
 	MACRO_LD_REMOVE(pPager->pAll,pPage);
@@ -55791,17 +55791,17 @@ static int pager_fill_page(Pager *pPager,pgno iNum,void *pContents)
 static int pager_get_page_contents(Pager *pPager,Page *pPage,int noContent)
 {
 	int rc = UNQLITE_OK;
-	if( pPager->is_mem || noContent || pPage->pgno >= pPager->dbSize ){
+	if( pPager->is_mem || noContent || pPage->iPage >= pPager->dbSize ){
 		/* Do not bother reading, zero the page contents only */
 		SyZero(pPage->zData,pPager->iPageSize);
 		return UNQLITE_OK;
 	}
 	if( (pPager->iOpenFlags & UNQLITE_OPEN_MMAP) && (pPager->pMmap /* Paranoid edition */) ){
 		unsigned char *zMap = (unsigned char *)pPager->pMmap;
-		pPage->zData = &zMap[pPage->pgno * pPager->iPageSize];
+		pPage->zData = &zMap[pPage->iPage * pPager->iPageSize];
 	}else{
 		/* Read content */
-		rc = unqliteOsRead(pPager->pfd,pPage->zData,pPager->iPageSize,pPage->pgno * pPager->iPageSize);
+		rc = unqliteOsRead(pPager->pfd,pPage->zData,pPager->iPageSize,pPage->iPage * pPager->iPageSize);
 	}
 	return rc;
 }
@@ -55853,7 +55853,7 @@ static Page * page_merge_dirty(Page *pA, Page *pB)
 	result.pDirtyNext = result.pDirtyPrev = 0;
 	pTail = &result;
 	while( pA && pB ){
-		if( pA->pgno < pB->pgno ){
+		if( pA->iPage < pB->iPage ){
 			pTail->pDirtyPrev = pA;
 			pA->pDirtyNext = pTail;
 			pTail = pA;
@@ -55936,7 +55936,7 @@ static Page * page_merge_hot(Page *pA, Page *pB)
 	result.pNextHot = result.pPrevHot = 0;
 	pTail = &result;
 	while( pA && pB ){
-		if( pA->pgno < pB->pgno ){
+		if( pA->iPage < pB->iPage ){
 			pTail->pPrevHot = pA;
 			pA->pNextHot = pTail;
 			pTail = pA;
@@ -56953,7 +56953,7 @@ static int page_write(Pager *pPager,Page *pPage)
 	int rc;
 	if( !pPager->is_mem && !pPager->no_jrnl ){
 		/* Write the page to the transaction journal */
-		if( pPage->pgno < pPager->dbOrigSize && !unqliteBitvecTest(pPager->pVec,pPage->pgno) ){
+		if( pPage->iPage < pPager->dbOrigSize && !unqliteBitvecTest(pPager->pVec,pPage->iPage) ){
 			sxu32 cksum;
 			if( pPager->nRec == SXU32_HIGH ){
 				/* Journal Limit reached */
@@ -56961,7 +56961,7 @@ static int page_write(Pager *pPager,Page *pPage)
 				return UNQLITE_LIMIT;
 			}
 			/* Write the page number */
-			rc = WriteInt64(pPager->pjfd,pPage->pgno,pPager->iJournalOfft);
+			rc = WriteInt64(pPager->pjfd,pPage->iPage,pPager->iJournalOfft);
 			if( rc != UNQLITE_OK ){ return rc; }
 			/* Write the raw page */
 			/** CODEC */
@@ -56975,14 +56975,14 @@ static int page_write(Pager *pPager,Page *pPage)
 			pPager->iJournalOfft += 8 /* page num */ + pPager->iPageSize + 4 /* cksum */;
 			pPager->nRec++;
 			/* Mark as journalled  */
-			unqliteBitvecSet(pPager->pVec,pPage->pgno);
+			unqliteBitvecSet(pPager->pVec,pPage->iPage);
 		}
 	}
 	/* Add the page to the dirty list */
 	pager_page_to_dirty_list(pPager,pPage);
 	/* Update the database size and return. */
-	if( (1 + pPage->pgno) > pPager->dbSize ){
-		pPager->dbSize = 1 + pPage->pgno;
+	if( (1 + pPage->iPage) > pPager->dbSize ){
+		pPager->dbSize = 1 + pPage->iPage;
 		if( pPager->dbSize == SXU64_HIGH ){
 			unqliteGenError(pPager->pDb,"Database maximum page limit (64-bit) reached");
 			return UNQLITE_LIMIT;
@@ -57013,7 +57013,7 @@ static int pager_write_dirty_pages(Pager *pPager,Page *pDirty)
 		/* Point to the next dirty page */
 		pNext = pDirty->pDirtyPrev; /* Not a bug: Reverse link */
 		if( (pDirty->flags & PAGE_DONT_WRITE) == 0 ){
-			rc = unqliteOsWrite(pPager->pfd,pDirty->zData,pPager->iPageSize,pDirty->pgno * pPager->iPageSize);
+			rc = unqliteOsWrite(pPager->pfd,pDirty->zData,pPager->iPageSize,pDirty->iPage * pPager->iPageSize);
 			if( rc != UNQLITE_OK ){
 				/* A rollback should be done */
 				break;
@@ -57058,7 +57058,7 @@ static int pager_write_hot_dirty_pages(Pager *pPager,Page *pDirty)
 		/* Point to the next page */
 		pNext = pDirty->pPrevHot; /* Not a bug: Reverse link */
 		if( (pDirty->flags & PAGE_DONT_WRITE) == 0 ){
-			rc = unqliteOsWrite(pPager->pfd,pDirty->zData,pPager->iPageSize,pDirty->pgno * pPager->iPageSize);
+			rc = unqliteOsWrite(pPager->pfd,pDirty->zData,pPager->iPageSize,pDirty->iPage * pPager->iPageSize);
 			if( rc != UNQLITE_OK ){
 				break;
 			}
@@ -57400,7 +57400,7 @@ UNQLITE_PRIVATE int unqlitePagerRollback(Pager *pPager,int bResetKvEngine)
 static int unqlitePagerDontWrite(unqlite_page *pMyPage)
 {
 	Page *pPage = (Page *)pMyPage;
-	if( pPage->pgno > 0 /* Page 0 is always writeable */ ){
+	if( pPage->iPage > 0 /* Page 0 is always writeable */ ){
 		pPage->flags |= PAGE_DONT_WRITE;
 	}
 	return UNQLITE_OK;
@@ -57931,8 +57931,8 @@ static int unqliteKvIoPageDontJournal(unqlite_page *pRaw)
 	}
 	pPager = pPage->pPager;
 	if( pPager->iState >= PAGER_WRITER_LOCKED ){
-		if( !pPager->no_jrnl && pPager->pVec && !unqliteBitvecTest(pPager->pVec,pPage->pgno) ){
-			unqliteBitvecSet(pPager->pVec,pPage->pgno);
+		if( !pPager->no_jrnl && pPager->pVec && !unqliteBitvecTest(pPager->pVec,pPage->iPage) ){
+			unqliteBitvecSet(pPager->pVec,pPage->iPage);
 		}
 	}
 	return UNQLITE_OK;

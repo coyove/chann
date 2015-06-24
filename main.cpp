@@ -17,11 +17,11 @@
 #include <shlobj.h>
 
 #include "helper.h"
+#include "general.h"
 
 extern "C" {
 #include "unqlite.h"
 #include "mongoose.h"
-#include "general.h"
 #include "templates.h"
 }
 
@@ -106,15 +106,7 @@ void sendThread(mg_connection* conn, struct Thread* r, bool reply = false, bool 
 
 	//display the sage flag
 	const char *sage = r->state == 's' ? "<font color='red'><b>(sage)</b></font>" : "";
-
-	//display the delete link
-	/*char can_delete[256];
-	if (!reply){
-		int len3 = sprintf(can_delete, "<small class='del'>[<a href=\"javascript:askdel(%d)\">x</a>]</small>", r->threadID);
-		can_delete[len3] = 0;
-	}
-	else
-		strncpy(can_delete, "\0", 1);*/
+	const char *locked = r->state == 'l' ? "<font color='red'><b>(locked)</b></font>" : "";
 
 	//display the red name
 	char display_ssid[64];
@@ -150,9 +142,10 @@ void sendThread(mg_connection* conn, struct Thread* r, bool reply = false, bool 
 		"<a href='/thread/%d'>No.%d</a>&nbsp;<font color='#228811'><b>%s</b></font> %s ID:%s %s"
 		"<div class='quote'>%s</div>"
 		"%s"
+		"%s"
 		"</div>",
 		width1, display_image, r->threadID, r->threadID, r->author, timetmp, display_ssid, crl,
-				cut_long ? c_content : content, sage);
+				cut_long ? c_content : content, sage, locked);
 
 	mg_send_data(conn, tmp, len);
 }
@@ -443,13 +436,12 @@ void postSomething(mg_connection* conn, const char* uri){
 		}
 	}
 
+	//see if there is a SPECIAL string in the text field
 	if (strcmp(var1, "") == 0) strcpy(var1, "Untitled");
+	//user trying to sega a thread/reply
 	if (strcmp(var3, "sage") == 0) sage = true;
-	if (strcmp(var2, "") == 0 && !fileAttached) {
-		mg_printf_data(conn, html_error, "Please enter something");
-		return;
-	}
-	if (strcmp(var2, "delete") == 0){//user trying to delete a thread/reply
+	//user trying to delete a thread/reply
+	if (strcmp(var1, "delete") == 0){
 		long id = extractLastNumber(conn);
 		struct Thread * t = readThread_(pDb, id); //what he replies to is which he wants to delete
 		if (strcmp(var3, admin_pass) == 0)
@@ -461,8 +453,53 @@ void postSomething(mg_connection* conn, const char* uri){
 
 		return;
 	}
+	//admin trying to update a thread/reply
+	if (strcmp(var1, "update") == 0 && strcmp(var3, admin_pass) == 0){
+		long id = extractLastNumber(conn);
+		struct Thread * t = readThread_(pDb, id); //what admin replies to is which he wants to update
+		//note the server doesn't filter the special chars such as "<" and ">"
+		//so it's possible for admin to use HTML here
+		writeString(pDb, t->content, var2, true); 
+		mg_printf_data(conn, html_error, "Updated successfully");
+		printf("Admin edited thread no.%d at %s", t->threadID, nowNow());
+		return;
+	}
+	//admin trying to sage a thread/reply
+	if (strstr(var1, "sage") && strcmp(var3, admin_pass) == 0){
+		long tid = extractLastNumber(conn);
+		struct Thread* t = readThread_(pDb, tid);
 
+		if(findParent(pDb, tid) == 0){
+			t->state = strcmp(var1, "unsage") == 0 ? 'm' : 's';
+			writeThread(pDb, tid, t, true);
+			mg_printf_data(conn, "You have %ssaged thread No.%d.", strcmp(var1, "unsage") == 0 ? "un" : "", tid);
+			printf("Thread %sSaged: [%d] at %s", strcmp(var1, "unsage") == 0 ? "un" : "", tid, nowNow());
+		}else
+			mg_printf_data(conn, html_error, "You can't sage a reply");
 
+		return;
+	}
+	//admin trying to lock a thread/reply
+	if (strstr(var1, "lock") && strcmp(var3, admin_pass) == 0){
+		long tid = extractLastNumber(conn);
+		struct Thread* t = readThread_(pDb, tid);
+
+		if(findParent(pDb, tid) == 0){
+			t->state = strcmp(var1, "unlock") == 0 ? 'm' : 'l';
+			writeThread(pDb, tid, t, true);
+			mg_printf_data(conn, "You have %slocked thread No.%d.", strcmp(var1, "unlock") == 0 ? "un" : "", tid);
+			printf("Thread %slocked: [%d] at %s", strcmp(var1, "unlock") == 0 ? "un" : "", tid, nowNow());
+		}else
+			mg_printf_data(conn, html_error, "You can't lock a reply");
+
+		return;
+	}
+	//image or comment or both
+	if (strcmp(var2, "") == 0 && !fileAttached) {
+		mg_printf_data(conn, html_error, "Please enter something");
+		return;
+	}
+	//verify the cookie
 	char ssid[128], expire[128], expire_epoch[128], username[10];
 	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
 
@@ -487,6 +524,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		strncpy(username, tmp[0].c_str(), 10);
 
 		auto iter = find(banlist.begin(), banlist.end(), username);
+		
 		if (iter != banlist.end()){
 			//this id is banned, so we destory it
 			destoryCookie(conn);
@@ -514,21 +552,12 @@ void postSomething(mg_connection* conn, const char* uri){
 		}
 	}
 
-	if (strcmp(var3, admin_pass) == 0){
-		strcpy(username, "Admin");
-	}
+	if (strcmp(var3, admin_pass) == 0) strcpy(username, "Admin");
 
-	//replace some important thinga
-	string tmpcontent(var2);
-	string tmpname(var1);
-	string tmpemail(var3);
-
-	tmpcontent = replaceAll(tmpcontent, string("<"), string("&lt;"));
-	tmpcontent = replaceAll(tmpcontent, string(">"), string("&gt;"));
-	tmpname = replaceAll(tmpname, string("<"), string("&lt;"));
-	tmpname = replaceAll(tmpname, string(">"), string("&gt;"));
-	tmpemail = replaceAll(tmpemail, string("<"), string("&lt;"));
-	tmpemail = replaceAll(tmpemail, string(">"), string("&gt;"));
+	//replace some important things
+	string tmpcontent(var2);	cleanString(tmpcontent);
+	string tmpname(var1);		cleanString(tmpname);
+	string tmpemail(var3);		cleanString(tmpemail);
 
 	strncpy(var1, tmpname.c_str(), 64);
 	strncpy(var3, tmpemail.c_str(), 64);
@@ -537,15 +566,8 @@ void postSomething(mg_connection* conn, const char* uri){
 	tmpcontent = "";
 
 	for (auto i = 0; i < imageDetector.size(); ++i){
-		if (startsWith(imageDetector[i], "http")){
-			/*(
-			endsWith(imageDetector[i], ".jpg\r") || endsWith(imageDetector[i], ".jpg") ||
-			endsWith(imageDetector[i], ".png\r") || endsWith(imageDetector[i], ".png") ||
-			endsWith(imageDetector[i], ".gif\r") || endsWith(imageDetector[i], ".gif") ||
-			endsWith(imageDetector[i], ".bmp\r") || endsWith(imageDetector[i], ".bmp")
-			)){*/
+		if (startsWith(imageDetector[i], "http"))
 			imageDetector[i] = "<a href='" + imageDetector[i] + "'>" + imageDetector[i] + "</a>";
-		}
 
 		if (startsWith(imageDetector[i], "&gt;&gt;No.")){
 			vector<string> gotoLink = split(imageDetector[i], string("."));
@@ -557,9 +579,14 @@ void postSomething(mg_connection* conn, const char* uri){
 
 	if (strstr(conn->uri, "/post_reply/")) {
 		long id = extractLastNumber(conn);
+		struct Thread* t = readThread_(pDb, id);
 
-		newReply(pDb, id, tmpcontent.c_str(), var1, var3, username, var4, sage);
-		mg_printf_data(conn, html_redirtothread, id, id, id);
+		if(t->state == 'l')
+			mg_printf_data(conn, html_error, "You can't reply to a locked thread");
+		else{
+			newReply(pDb, id, tmpcontent.c_str(), var1, var3, username, var4, sage);
+			mg_printf_data(conn, html_redirtothread, id, id, id);
+		}
 	}
 	else{
 		newThread(pDb, tmpcontent.c_str(), var1, var3, username, var4, sage);
@@ -629,7 +656,6 @@ static void send_reply(struct mg_connection *conn) {
 
 		struct Thread* t = readThread_(pDb, tid);
 		if (strstr(conn->uri, admin_pass)){
-
 			t->state = strstr(conn->uri, "/u/") ? 'm':'s';
 			writeThread(pDb, tid, t, true);
 			mg_printf_data(conn, "You have (un)saged thread No.%d.", tid);

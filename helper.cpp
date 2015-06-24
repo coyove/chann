@@ -73,3 +73,8 @@ long extractLastNumber(mg_connection* conn){
 
 	return atol(num.c_str());
 }
+
+void cleanString(string& str){
+	str = replaceAll(str, string("<"), string("&lt;"));
+	str = replaceAll(str, string(">"), string("&gt;"));
+}

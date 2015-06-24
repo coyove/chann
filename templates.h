@@ -52,7 +52,7 @@ char *html_header =
 "color: white;"
 "padding: 0.1em;"
 "border-radius: 0.3em;"
-"font-size:10px;"
+"font-size:8px;"
 "}"
 "</style>"
 "</head>"
