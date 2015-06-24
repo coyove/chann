@@ -1,4 +1,7 @@
-﻿#include <stdlib.h>
+﻿//unsafe
+#define _CRT_SECURE_NO_WARNINGS
+
+#include <stdlib.h>
 #include <stdio.h>
 #include <iterator>
 #include <algorithm>
@@ -412,7 +415,7 @@ void postSomething(mg_connection* conn, const char* uri){
 			char fname[12];
 			unqlite_util_random_string(pDb, fname, 11);
 			fname[11] = 0;
-			string sfname{ file_name }, sfnamep{ fname };
+			string sfname(file_name), sfnamep(fname);
 
 			std::transform(sfname.begin(), sfname.end(), sfname.begin(), ::tolower);
 
@@ -516,9 +519,9 @@ void postSomething(mg_connection* conn, const char* uri){
 	}
 
 	//replace some important thinga
-	string tmpcontent{ var2 };
-	string tmpname{ var1 };
-	string tmpemail{ var3 };
+	string tmpcontent(var2);
+	string tmpname(var1);
+	string tmpemail(var3);
 
 	tmpcontent = replaceAll(tmpcontent, string("<"), string("&lt;"));
 	tmpcontent = replaceAll(tmpcontent, string(">"), string("&gt;"));
@@ -605,7 +608,7 @@ static void send_reply(struct mg_connection *conn) {
 		postSomething(conn, conn->uri);
 	}
 	else if (strstr(conn->uri, "/new_cookie/")) {
-		string url{ conn->uri };
+		string url(conn->uri);
 		vector<string> tmp = split(url, "/");
 		string ssid = tmp[tmp.size() - 1];
 
@@ -639,7 +642,7 @@ static void send_reply(struct mg_connection *conn) {
 		
 	}
 	else if (strstr(conn->uri, "/ban/")){
-		string url{ conn->uri };
+		string url(conn->uri);
 		vector<string> tmp = split(url, "/");
 		string id = tmp[tmp.size() - 1];
 
@@ -673,7 +676,7 @@ static void send_reply(struct mg_connection *conn) {
 				return;
 			}
 
-		string url{ conn->uri };
+		string url(conn->uri);
 		vector<string> tmp = split(url, "/");
 		char ipath[64];
 		strcpy(ipath, ("images\\" + tmp[tmp.size() - 1]).c_str());
