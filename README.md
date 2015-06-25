@@ -1,7 +1,7 @@
 cchan 匿名版
 ============
 
-cchan是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http://unqlite.org)、[ssl_wrapper](https://github.com/cesanta/ssl_wrapper)的匿名版服务器。
+cchan是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http://unqlite.org)的匿名版服务器。
 
 cchan目前仍是一个非常早期的预览版本，代码基本不会对运行结果进行检查，这将导致潜在Unhandled Exceptions的出现。即便短时间内没有问题，这也是非常要命的。
 
@@ -20,7 +20,7 @@ cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。�
 
 启动cchan
 ---------
-首次启动cchan时（即`sql.exe`），请务必遵循以下步骤：
+首次启动cchan时，请务必遵循以下步骤：
 
 1. 请首先在运行目录中新建`images`目录。
 2. 若需要将cchan部署到服务器上，请使用命令`-NOGPFAULTERRORBOX`。
@@ -29,3 +29,8 @@ cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。�
 5. 使用命令`-spell XXX`设置管理员密码，默认为随机生成字符串。
 6. 使用命令`-port XXX`设置监听端口。
 7. 其他命令请参考源码。
+
+安全性
+-----
+本质上讲，cchan除了设置发言间隔时间和ban ID之外，安全性是很低的，尤其是update、slogan、delete、sage、ban、state等操作完全是明文传输，
+为了提高安全性，推荐使用stunnel重定向一个HTTPS连接。

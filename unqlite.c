@@ -57839,7 +57839,7 @@ UNQLITE_PRIVATE int unqlitePagerClose(Pager *pPager)
  */
 UNQLITE_PRIVATE void unqlitePagerRandomString(Pager *pPager,char *zBuf,sxu32 nLen)
 {
-	static const char zBase[] = {"abcdefghijklmnopqrstuvwxyz"}; /* English Alphabet */
+	static const char zBase[] = {"abcdefghijklmnopqrstuvwxyz0123456789"}; /* English Alphabet */
 	sxu32 i;
 	/* Generate a binary string first */
 	SyRandomness(&pPager->sPrng,zBuf,nLen);

@@ -206,6 +206,9 @@ void showThreads(mg_connection* conn, long startID, long endID){
 	else
 		totalPages = (long)(totalThreads / threadsPerPage) + 1;
 
+	char * slogan = readString(pDb, r->content);
+	if(slogan) mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
+
 	while (r->nextThread){
 		r = readThread_(pDb, r->nextThread);
 		c++;
@@ -246,7 +249,6 @@ void showThreads(mg_connection* conn, long startID, long endID){
 		if (c == endID + 1) break;
 	}
 	mg_printf_data(conn, "<hr>");
-	//mg_send_data(conn, "<table><tr>", 11);
 
 	long current_page = endID / threadsPerPage;
 
@@ -270,7 +272,7 @@ void showThreads(mg_connection* conn, long startID, long endID){
 	mg_printf_data(conn, "<br/><br/>");
 	
 	clock_t endc = clock();
-	mg_printf_data(conn, "Completed in %.3lf s<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
+	mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
 }
 
 void showThread(mg_connection* conn, long id){
@@ -309,7 +311,7 @@ void showThread(mg_connection* conn, long id){
 	}*/
 
 	clock_t endc = clock();
-	mg_printf_data(conn, "Completed in %f s<br/>", (float)(endc - startc) / CLOCKS_PER_SEC);
+	mg_printf_data(conn, "Completed in %.3lfs<br/>", (float)(endc - startc) / CLOCKS_PER_SEC);
 }
 
 void setCookie(mg_connection *conn, char *ssid){
@@ -548,6 +550,22 @@ void postSomething(mg_connection* conn, const char* uri){
 
 		return;
 	}
+	//admin trying to post a slogan
+	//note that the content of the slogan is represented in HTML format
+	if (strstr(var1, "slogan") && strcmp(var3, admin_pass) == 0){
+		struct Thread* t = readThread_(pDb, 0);
+		char contentkey[16];
+		unqlite_util_random_string(pDb, contentkey, 15);
+		contentkey[15] = 0;
+		writeString(pDb, contentkey, var2, false);
+		strncpy(t->content, contentkey, 16);
+		
+		printMsg(conn, "You have updated the slogan");
+		printf("Slogan updated at %s", nowNow());
+		
+		writeThread(pDb, 0, t, true);
+		return;
+	}
 	//image or comment or both
 	if (strcmp(var2, "") == 0 && !fileAttached) {
 		printMsg(conn, "Please enter something");
@@ -673,7 +691,7 @@ void returnPage(mg_connection* conn, bool indexPage){
 	mg_printf_data(conn, "<small><span class='state'>%s</span></small><br/>", ssid);
 	time_t nn;
 	time(&nn);
-	mg_printf_data(conn, "<small>last restart: %.5lfd ago, ", difftime(nn, g_startuptime) / 3600 / 24);
+	mg_printf_data(conn, "<small>last restart: %.3lfh ago, ", difftime(nn, g_startuptime) / 3600);
 	mg_printf_data(conn, "total hit: %d, ", total_hit);
 	mg_printf_data(conn, "board state: %s, ", stop_newcookie ? "closed" : "open");
 	mg_printf_data(conn, "cooldown time: %ds</small>", cd_time);
