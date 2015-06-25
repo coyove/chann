@@ -8,13 +8,14 @@
 #include <string>
 #include <cstring>
 #include <vector>
+#include <map>
 #include <fstream>
 #include <sys/stat.h>
 
 #include <Windows.h>
-#include <dbghelp.h>
-#include <shellapi.h>
-#include <shlobj.h>
+//#include <dbghelp.h>
+//#include <shellapi.h>
+//#include <shlobj.h>
 
 #include "helper.h"
 #include "general.h"
@@ -53,15 +54,16 @@ static void Fatal(const char *zMsg)
 	exit(0);
 }
 
-int threadsPerPage = 5;
-char* admin_pass;
-char* site_title;
-char* md5_salt;
-time_t g_startuptime;
-long total_hit = 0;
-int cd_time = 20;
-vector<string> banlist;
-bool stop_newcookie = false;
+int threadsPerPage = 5;			//threads per page to show
+char* admin_pass;				// * administrator's password
+char* site_title;				//site's title
+char* md5_salt;					// * MD5 salt
+time_t g_startuptime;			//server's startup time
+long total_hit = 0;				//pages' total hits
+int cd_time = 20;				//cooldown time
+vector<string> banlist;			//cookie ban list
+bool stop_newcookie = false;	//stop delivering new cookies
+map<string, long> iplist;		//remote ip list
 
 void printMsg(mg_connection* conn, const char* msg, ...){
 	mg_printf_data(conn, html_header, site_title, site_title);
@@ -87,6 +89,24 @@ char* generateSSID(const char *user_name, const char* time) {
 	mg_md5(hash, user_name, ":", time, md5_salt, NULL);
 
 	return hash;
+}
+
+bool checkIP(mg_connection* conn, bool verbose = false){
+	time_t rawtime;
+	time(&rawtime);
+	string sip(conn->remote_ip);
+	time_t lasttime = iplist[sip];
+	//printf("%d\n", lasttime);
+	//lasttime = lasttime ? lasttime : rawtime; // if lasttime = 0, meaning this ip is the first time accessing the server
+
+	if( abs(lasttime - rawtime) < cd_time && lasttime != 0){
+		printMsg(conn, "Cooldown time [%s], please wait", conn->remote_ip);
+		if(verbose)
+			printf("Rapid access [%s] at %s", conn->remote_ip, nowNow());
+		return false;
+	}
+	iplist[sip] = rawtime;
+	return true;
 }
 
 void sendThread(mg_connection* conn, struct Thread* r, bool reply = false, bool show_reply = true, bool cut_long = false){
@@ -388,6 +408,9 @@ void postSomething(mg_connection* conn, const char* uri){
 	const char *data;
 	int data_len, ofs = 0, mofs = 0;
 	char var_name[100], file_name[100];
+
+	//first check the ip
+	if(!checkIP(conn)) return;
 
 	//get the post form data
 	//var1: the subject of the thread
@@ -691,7 +714,7 @@ static void send_reply(struct mg_connection *conn) {
 		postSomething(conn, conn->uri);
 	}
 	else if (strstr(conn->uri, "/new_cookie/")) {
-		string url(conn->uri);
+		/*string url(conn->uri);
 		vector<string> tmp = split(url, "/");
 		string ssid = tmp[tmp.size() - 1];
 
@@ -702,9 +725,11 @@ static void send_reply(struct mg_connection *conn) {
 			"Content-Length: 0\r\n",
 			ssid.c_str(), 60 * 60 * 24 * 30);
 
-		mg_printf_data(conn, "Transfer a new cookie: %s", ssid.c_str());
+		mg_printf_data(conn, "Transfer a new cookie: %s", ssid.c_str());*/
 	}
 	else if (strstr(conn->uri, "/state/")){
+		if(!checkIP(conn, true)) return;
+
 		string url(conn->uri);
 		vector<string> tmp = split(url, "/");
 
@@ -716,8 +741,10 @@ static void send_reply(struct mg_connection *conn) {
 			t->state = newstate;
 			writeThread(pDb, t->threadID, t, true);
 			printMsg(conn, "Thread's state updated successfully");
-		}else
+		}else{
 			printMsg(conn, "Your don't have the permission");
+			checkIP(conn, true);
+		}
 	}
 	else if (strstr(conn->uri, "/delete/")){
 		long id = extractLastNumber(conn);
@@ -725,8 +752,10 @@ static void send_reply(struct mg_connection *conn) {
 
 		if (strstr(conn->uri, admin_pass))
 			userDeleteThread(conn, id, true);
-		else
+		else{
 			printMsg(conn, "Your don't have the permission");
+			checkIP(conn, true);
+		}
 		
 	}
 	else if (strstr(conn->uri, "/ban/")){
@@ -750,6 +779,7 @@ static void send_reply(struct mg_connection *conn) {
 		else{
 			printMsg(conn, "Your don't have the permission.");
 			printf("Trying to (Un)Banned ID: [%s] at %s", id.c_str(), nowNow());
+			checkIP(conn, true);
 		}
 
 	}
@@ -788,6 +818,8 @@ static void send_reply(struct mg_connection *conn) {
 			}
 			fclose(fp);
 			mg_write(conn, "\r\n", 2);
+		}else{
+			mg_printf(conn, "HTTP/1.1 404 Not Found\r\nContent-Type: image/jpeg\r\nContent-Length: 0\r\n\r\n");
 		}
 	}
 	else if (strstr(conn->uri, "/cookie/")){
@@ -795,8 +827,10 @@ static void send_reply(struct mg_connection *conn) {
 			stop_newcookie = strstr(conn->uri, "/close/") ? true: false;
 			printMsg(conn, "Your have closed/opened new cookie delivering.");
 			printf("Cookie closed/opened at %s", nowNow());
-		}else
+		}else{
 			printMsg(conn, "Your don't have the permission.");
+			checkIP(conn, true);
+		}
 	}
 	else 
 		returnPage(conn, true);
