@@ -44,6 +44,8 @@ int resetDatabase(unqlite *pDb){
 	t->nextThread = 0;
 	t->childCount = 0;
 
+	strcpy(t->content, "slogan");
+
 	rc = unqlite_kv_store(pDb, key, 4, t, sizeof(struct Thread));
 	if (rc != UNQLITE_OK)
 		return 0;

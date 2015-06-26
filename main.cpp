@@ -115,49 +115,57 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	char timetmp[64];
 	strftime(timetmp, 64, "%Y-%m-%d %X", timeinfo);
 
-	//a reply thread has an horizontal offset(20px) at left
-	const char *width1 = reply ? "class='thread header' style='margin-left:20px'" : "class='thread' ";
-	//flag to (reply to reply)
-	char crl[128];
+	char crl[128], sage[128], locked[128], display_ssid[64], width1[128];
 	sprintf(crl, show_reply ? "[<a href=\"/thread/%d\"><b>Reply</b></a>]" : "", r->threadID); 
+	//a reply thread has an horizontal offset(20px) at left
+	strcpy(width1, reply ? "class='thread header' style='margin-left:20px'" : "class='thread' ");
 	//display the sage flag
-	const char *sage = (r->state & SAGE_THREAD && !reply) ? "<font color='red'><b>&#128078;&nbsp;SAGE</b></font><br/>" : "";
+	strcpy(sage, (r->state & SAGE_THREAD && !reply) ? "<font color='red'><b>&#128078;&nbsp;SAGE</b></font><br/>" : "");
 	//display the lock flag
-	const char *locked = r->state & LOCKED_THREAD ? "<font color='red'><b>&#128274;&nbsp;Locked</b></font><br/>" : "";
+	strcpy(locked, r->state & LOCKED_THREAD ? "<font color='red'><b>&#128274;&nbsp;Locked</b></font><br/>" : "");
 	//display the red name
-	const char *display_ssid = (strcmp(r->ssid, "Admin") == 0) ? "<b><font color='red'>Admin</font></b>" : r->ssid;
+	strcpy(display_ssid, (strcmp(r->ssid, "Admin") == 0) ? "<b><font color='red'>Admin</font></b>" : r->ssid);
 
-	char *reply_count;
+	char reply_count[128];
 	if(r->childThread){
 		struct Thread* c = readThread_(pDb, r->childThread);
-		reply_count = new char[128];
 		sprintf(reply_count, "<font color='darkcyan'>&#128172;&nbsp;<i>%d reply(s) total ...</i></font><br/>", c->childCount); 
 	}else
-		reply_count = "";
+		strcpy(reply_count, "");
 
 	char display_image[128];
 	if (strcmp(r->imgSrc, "") == 0 || strcmp(r->imgSrc, "x") == 0)
 		strcpy(display_image, "");
 	else{
-		if(cut_image)
-			sprintf(display_image, "<div class='img'><a href='/images/%s'>[View Image]</a></div>", r->imgSrc);
+		if(cut_image){
+			struct stat st;
+			string filename(r->imgSrc);
+			stat(("images\\" + filename).c_str(), &st);
+
+			sprintf(display_image, "<div class='img'><a href='/images/%s'>[View Image (%d kb)]</a></div>", 
+				r->imgSrc, st.st_size / 1024);
+
+		}
 		else
 			sprintf(display_image, "<div class='img'><a href='/images/%s'><img class='imgs' src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
 	}
 
 	char admin_ctrl[512];
 	if(admin_view){
-		sprintf(admin_ctrl, "<br/><small>[%s|"
-							"<a href='/delete/%d'>DEL</a>|"
-							"<a href='/sage/%d'>SAGE</a>|"
-							"<a href='/lock/%d'>LOCK</a>|"
-							"<a href='/rename/%s'>X-IMG</a>|"
-							"<a href='/ban/%s'>X-ID</a>|"
-							"<a href='/ban/ip/%s'>X-IP</a>|"
-							"<a href='/list/%s'>L-ID</a>|"
-							"<a href='/list/ip/%s'>L-IP</a>"
-							"]</small>",
-							r->email, r->threadID, r->threadID, r->threadID, r->imgSrc, r->ssid, r->email, r->ssid, r->email);
+		sprintf(admin_ctrl, "<br/><span class='admin'>["
+							"<a href='/list/ip/%s'>%s</a>,<a href='/ban/ip/%s'>&#10006;</a>,"
+							"<a href='http://ip.chinaz.com/?IP=%s'>&#127760;</a>|"
+							"<a href='/sage/%d'>&#128078;</a>,"
+							"<a href='/lock/%d'>&#128274;</a>,"
+							"<a href='/delete/%d'>&#10006;</a>,"
+							"<a href='/rename/%s'>&#10006;IMG</a>|"
+							"<a href='/list/%s'>%s</a>,"
+							"<a href='/ban/%s'>&#10006;</a>"
+							"]</span>",
+							r->email, r->email, r->email, r->email,
+							r->threadID, r->threadID, r->threadID, 
+							r->imgSrc, 
+							r->ssid, r->ssid, r->ssid);
 	}
 	else
 		strcpy(admin_ctrl, "");
@@ -209,11 +217,16 @@ void showThreads(mg_connection* conn, long startID, long endID){
 	else
 		totalPages = (long)(totalThreads / threadsPerPage) + 1;
 
-	char * slogan = readString(pDb, r->content);
-	if(slogan) mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
+	char *slogan = readString(pDb, r->content);
+	if(slogan) {
+		mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
+		delete [] slogan;
+	}
 
 	while (r->nextThread){
-		r = readThread_(pDb, r->nextThread);
+		long tmpid = r->nextThread;
+		delete r;
+		r = readThread_(pDb, tmpid);
 		c++;
 		if (c >= startID && c <= endID){
 			mg_printf_data(conn, "<hr>");
@@ -241,8 +254,10 @@ void showThreads(mg_connection* conn, long startID, long endID){
 					vt.push_back(r);
 				}
 
-				for (int i = vt.size() - 1; i >= 0; i--)
+				for (int i = vt.size() - 1; i >= 0; i--){
 					sendThread(conn, vt[i], true, false, false, false, admin_view);
+					delete vt[i];
+				}
 
 			}
 
@@ -251,6 +266,7 @@ void showThreads(mg_connection* conn, long startID, long endID){
 		
 		if (c == endID + 1) break;
 	}
+	if(r) delete r;
 	mg_printf_data(conn, "<hr>");
 
 	long current_page = endID / threadsPerPage;
@@ -297,7 +313,10 @@ void showThread(mg_connection* conn, long id){
 	mg_printf_data(conn, html_form, zztmp, "[Post a Reply]");
 		
 	if (r->childThread) {
-		r = readThread_(pDb, r->childThread); // beginning of the circle
+		long r_childThread = r->childThread;
+		delete r;
+
+		r = readThread_(pDb, r_childThread); // beginning of the circle
 		long rid = r->threadID; //the ID
 		bool too_many_replies = (r->childCount > 20);
 
@@ -305,13 +324,16 @@ void showThread(mg_connection* conn, long id){
 
 		int di = 1;
 		while (r->nextThread != rid){
-			//printf("%d\n", r->nextThread);
-			r = readThread_(pDb, r->nextThread);
+			long r_nextThread = r->nextThread;
+			delete r;
+
+			r = readThread_(pDb, r_nextThread);
 			di++;
 
 			sendThread(conn, r, true, true, false, too_many_replies && (di > 20), admin_view);
 		}
 
+		if(r) delete r;
 	}
 	/*else{
 		mg_printf_data(conn, "<i>no reply yet</i><hr>", r->childCount);
@@ -331,8 +353,10 @@ void userDeleteThread(mg_connection* conn, long tid, bool admin = false){
 	}
 
 	strncpy(username, zztmp[0].c_str(), 10);
-	char *finalssid = generateSSID(username);
-	if (strcmp(finalssid, zztmp[1].c_str()) == 0){
+	char testssid[33];
+	strcpy(testssid, generateSSID(username));
+
+	if (strcmp(testssid, zztmp[1].c_str()) == 0){
 		struct Thread* t = readThread_(pDb, tid);
 
 		if (strcmp(t->ssid, username) == 0 || admin){
@@ -344,6 +368,8 @@ void userDeleteThread(mg_connection* conn, long tid, bool admin = false){
 			printMsg(conn, "Your cookie doesn't match the thread");
 			printf("Trying to Delete Thread: [%d] at %s", tid, nowNow());
 		}
+
+		if(t) delete t;
 	}else
 		printMsg(conn, "Your cookie is invalid");
 }
@@ -358,8 +384,10 @@ void userListThread(mg_connection* conn){
 	}
 
 	strncpy(username, zztmp[0].c_str(), 10);
-	char *finalssid = generateSSID(username);
-	if (strcmp(finalssid, zztmp[1].c_str()) == 0){
+	char testssid[33];
+	strcpy(testssid, generateSSID(username));
+
+	if (strcmp(testssid, zztmp[1].c_str()) == 0){
 		struct Thread *r = readThread_(pDb, 0); 
 		struct Thread *t;
 
@@ -371,11 +399,14 @@ void userListThread(mg_connection* conn){
 
 			if(strcmp(username, t->ssid) == 0)
 				sendThread(conn, t, true, false, true, true, false);
+
+			if(t) delete t;
 		}
 		clock_t endc = clock();
 		mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
 		mg_send_data(conn, "</html></body>", 14);
 
+		if(r) delete r;
 	}else
 		printMsg(conn, "Your cookie is invalid");
 }
@@ -491,11 +522,9 @@ void postSomething(mg_connection* conn, const char* uri){
 	//note that the content of the slogan is represented in HTML format
 	if (strstr(var3, "slogan") && verifyAdmin(conn)){
 		struct Thread* t = readThread_(pDb, 0);
-		char contentkey[16];
-		unqlite_util_random_string(pDb, contentkey, 15);
-		contentkey[15] = 0;
-		writeString(pDb, contentkey, var2, false);
-		strncpy(t->content, contentkey, 16);
+		
+		writeString(pDb, "slogan", var2, false);
+		strncpy(t->content, "slogan", 16);
 		
 		printMsg(conn, "You have updated the slogan");
 		printf("Slogan updated at %s", nowNow());
@@ -594,6 +623,8 @@ void postSomething(mg_connection* conn, const char* uri){
 			mg_printf_data(conn, html_redirtothread, id, id, id);
 			mg_printf_data(conn, "</body></html>");
 		}
+
+		if(t) delete t;
 	}
 	else{
 		newThread(pDb, tmpcontent.c_str(), var1, conn->remote_ip, username, var4, sage);
@@ -781,11 +812,14 @@ static void send_reply(struct mg_connection *conn) {
 					if(strcmp(id.c_str(), t->ssid) == 0)
 						sendThread(conn, t, true, false, true, true, true);
 				}
+
+				if(t) delete t;
 			}
 			clock_t endc = clock();
 			mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
 			mg_send_data(conn, "</html></body>", 14);
 
+			if(r) delete r;
 		}
 		else{
 			printMsg(conn, "Your don't have the permission");

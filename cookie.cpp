@@ -31,7 +31,8 @@ int renewCookie(mg_connection* conn, const char* username){
 	char timebuf[16];
 	int c = sprintf(timebuf, "%lu", rawtime); timebuf[c] = 0;*/
 
-	char *newssid = generateSSID(username);
+	char newssid[33];
+	strcpy(newssid, generateSSID(username));
 	char finalssid[64];
 
 	int len = sprintf(finalssid, "%s|%s", username, newssid);
@@ -62,7 +63,8 @@ char* giveNewCookie(mg_connection* conn){
 	char timebuf[16];
 	int c = sprintf(timebuf, "%lu", rawtime); timebuf[c] = 0;*/
 
-	char *newssid = generateSSID(username);
+	char newssid[33];
+	strcpy(newssid, generateSSID(username));
 	char finalssid[64];
 
 	int len = sprintf(finalssid, "%s|%s", username, newssid);
