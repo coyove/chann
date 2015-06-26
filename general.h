@@ -42,6 +42,8 @@ struct Thread{
 
 // when use readXXX, remember to destory them
 
+void changeState(struct Thread* t, char statebit, bool op);
+char * resolveState(char state);
 char* readString(unqlite *pDb, char* key);
 char* readString_(unqlite *pDb, long key);
 int writeString(unqlite *pDb, char* key, const char* value, bool autoCommit);

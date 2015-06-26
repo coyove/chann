@@ -1,5 +1,31 @@
 #include "general.h"
 
+void changeState(struct Thread* t, char statebit, bool op){
+	char truebit = statebit;
+
+	if(op){ // add a state
+		if(t->state & truebit){} // already has the state
+		else
+			t->state += truebit;
+	}else{
+		if(t->state & truebit)
+			t->state -= truebit;
+		else{} // already lose the state
+	}
+}
+
+char * resolveState(char state){
+	char *ret = new char[64];
+	strcpy(ret, "[");
+	strcat(ret, state & NORMAL_DISPLAY ? "Normal|" : "Deleted,");
+	strcat(ret, state & MAIN_THREAD ? "Thread|" : "");
+	strcat(ret, state & THREAD_REPLY ? "Reply|" : "");
+	strcat(ret, state & SAGE_THREAD ? "Sage|" : "");
+	strcat(ret, state & LOCKED_THREAD ? "Locked|" : "");
+
+	return ret;
+}
+
 long nextCounter(unqlite *pDb){
 	long v = readLong(pDb, "global_counter") + 1;
 	writeLong(pDb, "global_counter", v, false);
@@ -63,19 +89,21 @@ int deleteThread(unqlite *pDb, long tid){
 		}
 
 		//t->state = 'd';
-		t->state -= NORMAL_DISPLAY;
+		//t->state -= NORMAL_DISPLAY;
+		changeState(t, NORMAL_DISPLAY, false);
 		writeThread(pDb, t->threadID, t, false);
 	}
 
 	if (!(t->state & MAIN_THREAD)){
-		char contentkey[16];
-		unqlite_util_random_string(pDb, contentkey, 15);
-		contentkey[15] = 0;
-		writeString(pDb, contentkey, "<font color='red'>Deleted</font>", false);
+		//char contentkey[16];
+		//unqlite_util_random_string(pDb, contentkey, 15);
+		//contentkey[15] = 0;
+		//writeString(pDb, contentkey, "<font color='red'>Deleted</font>", false);
 
-		strncpy(t->content, contentkey, 16);
+		//strncpy(t->content, contentkey, 16);
 		//t->state = 'd';
-		t->state -= NORMAL_DISPLAY;
+		//t->state -= NORMAL_DISPLAY;
+		changeState(t, NORMAL_DISPLAY, false);
 		writeThread(pDb, t->threadID, t, false);
 	}
 
