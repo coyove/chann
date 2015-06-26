@@ -68,6 +68,7 @@ long findParent(unqlite *pDb, long startID){
 }
 
 int deleteThread(unqlite *pDb, long tid){
+	// cchan will never truely delete a thread, it just hides it
 	struct Thread* t = readThread_(pDb, tid);
 	struct Thread* tp = readThread_(pDb, t->prevThread);
 	struct Thread* tn = readThread_(pDb, t->nextThread);

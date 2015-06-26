@@ -1,9 +1,13 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <time.h>
 
 extern "C"{
 #include "mongoose.h"
+#include "unqlite.h"
 }
 
 using namespace std;
@@ -15,3 +19,5 @@ bool endsWith(std::string const &fullString, std::string const &ending);
 bool startsWith(std::string const &fullString, std::string const &start);
 long extractLastNumber(mg_connection* conn);
 void cleanString(string& str);
+char* nowNow();
+void Fatal(const char *zMsg);

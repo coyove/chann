@@ -83,6 +83,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="cookie.cpp" />
     <ClCompile Include="general.cpp" />
     <ClCompile Include="helper.cpp" />
     <ClCompile Include="main.cpp" />
@@ -90,6 +91,7 @@
     <ClCompile Include="unqlite.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="cookie.h" />
     <ClInclude Include="general.h" />
     <ClInclude Include="helper.h" />
     <ClInclude Include="mongoose.h" />

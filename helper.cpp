@@ -2,6 +2,39 @@
 
 using namespace std;
 
+extern unqlite* pDb;
+
+char* nowNow(){
+	time_t rawtime;
+	time(&rawtime);
+	return asctime(localtime(&rawtime));
+}
+
+void Fatal(const char *zMsg)
+{
+	if (pDb){
+		const char *zErr;
+		int iLen = 0; /* Stupid cc warning */
+
+		/* Extract the database error log */
+		unqlite_config(pDb, UNQLITE_CONFIG_ERR_LOG, &zErr, &iLen);
+		if (iLen > 0){
+			/* Output the DB error log */
+			puts(zErr); /* Always null termniated */
+		}
+	}
+	else{
+		if (zMsg){
+			puts(zMsg);
+		}
+	}
+	/* Manually shutdown the library */
+	unqlite_lib_shutdown();
+	/* Exit immediately */
+	exit(0);
+}
+
+
 //some c++ string functions to make life easier
 vector<string> split(const string &s, const string &seperator){
 	vector<string> result;
