@@ -18,6 +18,7 @@ extern "C" {
 }
 
 #include <Windows.h>
+#include <Psapi.h>
 
 #include "helper.h"
 #include "general.h"
@@ -507,6 +508,12 @@ void postSomething(mg_connection* conn, const char* uri){
 		userListThread(conn);
 		return;
 	}
+	if (strstr(var3, "url")){
+		mg_printf_data(conn, html_header, site_title, site_title);
+		mg_printf_data(conn, "Image uploaded: [http://%s:%d/images/%s].</body></html>", 
+			conn->local_ip, conn->local_port, var4);
+		return;
+	}
 	//admin trying to update a thread/reply
 	if (strstr(var3, "update") && verifyAdmin(conn)){
 		long id = extractLastNumber(conn);
@@ -646,20 +653,23 @@ void returnPage(mg_connection* conn, bool indexPage){
 		showThreads(conn, i, j);
 	}
 
-	char ssid[128];
-	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-	mg_printf_data(conn, "<small><span class='state'>%s</span></small><br/>", ssid);
+	char ssid[10];
+	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 9); ssid[9] = 0;
 	time_t nn;
 	time(&nn);
-	mg_printf_data(conn, "<small>last restart: %.3lfh ago, ", difftime(nn, g_startuptime) / 3600);
-	mg_printf_data(conn, "total hit: %d, ", total_hit);
-	mg_printf_data(conn, "board state: %s, ", stop_newcookie ? "closed" : "open");
-	mg_printf_data(conn, "cooldown time: %ds</small>", cd_time);
+	mg_printf_data(conn, "<span class='admin'><a>%s</a><a>Last: %.3lfh</a>", ssid,
+		difftime(nn, g_startuptime) / 3600);
+
+	PROCESS_MEMORY_COUNTERS pmc;
+    GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
+	mg_printf_data(conn, "<a>Mem: %d MB</a>", pmc.WorkingSetSize / 1024 / 1024);
+	mg_printf_data(conn, "<a>Cookie: %s</a>", stop_newcookie ? "OFF" : "ON");
+	mg_printf_data(conn, "<a>CD: %ds</a></span>", cd_time);
 	mg_send_data(conn, "</html></body>", 14);
 }
 
 static void send_reply(struct mg_connection *conn) {
-	total_hit++;
+	//total_hit++;
 
 	if (strcmp(conn->uri, "/post_thread") == 0) {
 		postSomething(conn, conn->uri);
