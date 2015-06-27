@@ -17,11 +17,13 @@ extern "C" {
 #include "templates.h"
 }
 
+#if defined(_WIN32)
 #include <Windows.h>
 #include <Psapi.h>
+#endif
 
-#include "helper.h"
 #include "general.h"
+#include "helper.h"
 #include "cookie.h"
 
 using namespace std;
@@ -32,14 +34,15 @@ char* admin_pass;				// * administrator's password
 char* site_title;				//site's title
 char* md5_salt;					// * MD5 salt
 time_t g_startuptime;			//server's startup time
-long total_hit = 0;				//pages' total hits
+cclong total_hit = 0;				//pages' total hits
 int cd_time = 20;				//cooldown time
 unordered_set<string> banlist;	//cookie ban list
 unordered_set<string> ipbanlist;//ip ban list
 char* ipbanlist_path;			//file to store ip ban list
 bool stop_newcookie = false;	//stop delivering new cookies
-map<string, long> iplist;		//remote ip list
+map<string, cclong> iplist;		//remote ip list
 char adminCookie[64];			//Admin's cookie
+FILE* log_file;					//log file
 
 void printMsg(mg_connection* conn, const char* msg, ...){
 	mg_printf_data(conn, html_header, site_title, site_title);
@@ -73,7 +76,7 @@ bool checkIP(mg_connection* conn, bool verbose = false){
 	if( abs(lasttime - rawtime) < cd_time && lasttime != 0){
 		printMsg(conn, "Cooldown time [%s], please wait", conn->remote_ip);
 		if(verbose)
-			printf("Rapid access [%s] at %s", conn->remote_ip, nowNow());
+			fprintf(log_file, "Rapid access [%s] at %s", conn->remote_ip, nowNow());
 		return false;
 	}
 	iplist[sip] = rawtime;
@@ -86,7 +89,7 @@ bool verifyAdmin(mg_connection* conn){
 	return (strcmp(ssid, adminCookie) == 0);
 }
 
-void doThread(mg_connection* conn, long tid, char STATE){
+void doThread(mg_connection* conn, cclong tid, char STATE){
 	struct Thread* t = readThread_(pDb, tid);
 
 	if(findParent(pDb, tid) == 0){
@@ -94,7 +97,7 @@ void doThread(mg_connection* conn, long tid, char STATE){
 	
 		writeThread(pDb, tid, t, true);
 		printMsg(conn, "Thread No.%d new state: %s", tid, resolveState(t->state));
-		printf("Thread [%d] new state: %s at %s", tid, resolveState(t->state), nowNow());
+		fprintf(log_file, "Thread [%d] new state: %s at %s", tid, resolveState(t->state), nowNow());
 	}else
 		printMsg(conn, "You can't sage or lock a reply");
 }
@@ -102,7 +105,7 @@ void doThread(mg_connection* conn, long tid, char STATE){
 void sendThread(mg_connection* conn, struct Thread* r, 
 				bool reply = false, 
 				bool show_reply = true, 
-				bool cut_long = false, 
+				bool cut_cclong = false, 
 				bool cut_image = false,
 				bool admin_view = false){
 	if (!(r->state & NORMAL_DISPLAY)) return;
@@ -141,7 +144,7 @@ void sendThread(mg_connection* conn, struct Thread* r,
 		if(cut_image){
 			struct stat st;
 			string filename(r->imgSrc);
-			stat(("images\\" + filename).c_str(), &st);
+			stat(("images/" + filename).c_str(), &st);
 
 			sprintf(display_image, "<div class='img'><a href='/images/%s'>[View Image (%d kb)]</a></div>", 
 				r->imgSrc, st.st_size / 1024);
@@ -171,7 +174,7 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	else
 		strcpy(admin_ctrl, "");
 
-	//if the content is too long to display
+	//if the content is too cclong to display
 	char c_content[1050];
 	char* content = readString(pDb, r->content);
 	strncpy(c_content, content, 1000);
@@ -194,7 +197,7 @@ void sendThread(mg_connection* conn, struct Thread* r,
 		width1, 
 		display_image, 
 		r->threadID, r->threadID, r->author, timetmp, display_ssid, crl, admin_ctrl,
-		cut_long ? c_content : content, 
+		cut_cclong ? c_content : content, 
 		sage, 
 		locked, 
 		reply_count);
@@ -202,21 +205,21 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	mg_send_data(conn, tmp, len);
 }
 
-void showThreads(mg_connection* conn, long startID, long endID){
+void showThreads(mg_connection* conn, cclong startID, cclong endID){
 	struct Thread *r = readThread_(pDb, 0); // get the root thread
-	long c = 0;
+	cclong c = 0;
 	clock_t startc = clock();
 
 	bool admin_view = verifyAdmin(conn);
 
-	long totalThreads = r->childCount;
-	long totalPages;
+	cclong totalThreads = r->childCount;
+	cclong totalPages;
 	if (totalThreads <= threadsPerPage)
 		totalPages = 1;
 	else if (totalThreads % threadsPerPage == 0)
-		totalPages = (long)(totalThreads / threadsPerPage);
+		totalPages = (cclong)(totalThreads / threadsPerPage);
 	else
-		totalPages = (long)(totalThreads / threadsPerPage) + 1;
+		totalPages = (cclong)(totalThreads / threadsPerPage) + 1;
 
 	char *slogan = readString(pDb, r->content);
 	if(slogan) {
@@ -225,7 +228,7 @@ void showThreads(mg_connection* conn, long startID, long endID){
 	}
 
 	while (r->nextThread){
-		long tmpid = r->nextThread;
+		cclong tmpid = r->nextThread;
 		delete r;
 		r = readThread_(pDb, tmpid);
 		c++;
@@ -243,7 +246,7 @@ void showThreads(mg_connection* conn, long startID, long endID){
 				//mg_printf_data(conn, "<i>%d reply(s) total</i>", r->childCount);
 
 				r = readThread_(pDb, r->prevThread);
-				long rid = r->threadID; //the ID
+				cclong rid = r->threadID; //the ID
 				//sendThread(conn, r, true, false);
 				vt.push_back(r);
 				
@@ -270,9 +273,9 @@ void showThreads(mg_connection* conn, long startID, long endID){
 	if(r) delete r;
 	mg_printf_data(conn, "<hr>");
 
-	long current_page = endID / threadsPerPage;
+	cclong current_page = endID / threadsPerPage;
 
-	for (long i = 1; i <= totalPages; ++i){
+	for (cclong i = 1; i <= totalPages; ++i){
 		char tmp[256];
 		int len;
 
@@ -295,11 +298,11 @@ void showThreads(mg_connection* conn, long startID, long endID){
 	mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
 }
 
-void showThread(mg_connection* conn, long id){
+void showThread(mg_connection* conn, cclong id){
 	clock_t startc = clock();
 
 	struct Thread *r = readThread_(pDb, id); // get the root thread
-	long c = 0;
+	cclong c = 0;
 
 	if (id == 0) return;
 
@@ -314,18 +317,18 @@ void showThread(mg_connection* conn, long id){
 	mg_printf_data(conn, html_form, zztmp, "[Post a Reply]");
 		
 	if (r->childThread) {
-		long r_childThread = r->childThread;
+		cclong r_childThread = r->childThread;
 		delete r;
 
 		r = readThread_(pDb, r_childThread); // beginning of the circle
-		long rid = r->threadID; //the ID
+		cclong rid = r->threadID; //the ID
 		bool too_many_replies = (r->childCount > 20);
 
 		sendThread(conn, r , true, true, false, false, admin_view);
 
 		int di = 1;
 		while (r->nextThread != rid){
-			long r_nextThread = r->nextThread;
+			cclong r_nextThread = r->nextThread;
 			delete r;
 
 			r = readThread_(pDb, r_nextThread);
@@ -344,7 +347,7 @@ void showThread(mg_connection* conn, long id){
 	mg_printf_data(conn, "Completed in %.3lfs<br/>", (float)(endc - startc) / CLOCKS_PER_SEC);
 }
 
-void userDeleteThread(mg_connection* conn, long tid, bool admin = false){
+void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
 	char ssid[128], username[10];
 	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
 	vector<string> zztmp = split(string(ssid), string("|"));
@@ -363,11 +366,11 @@ void userDeleteThread(mg_connection* conn, long tid, bool admin = false){
 		if (strcmp(t->ssid, username) == 0 || admin){
 			deleteThread(pDb, tid);
 			printMsg(conn, "You have deleted thread No.%d", tid);
-			printf("Thread Deleted: [%d] at %s", tid, nowNow());
+			fprintf(log_file, "Thread Deleted: [%d] at %s", tid, nowNow());
 		}
 		else{
 			printMsg(conn, "Your cookie doesn't match the thread");
-			printf("Trying to Delete Thread: [%d] at %s", tid, nowNow());
+			fprintf(log_file, "Trying to Delete Thread: [%d] at %s", tid, nowNow());
 		}
 
 		if(t) delete t;
@@ -394,7 +397,7 @@ void userListThread(mg_connection* conn){
 
 		mg_printf_data(conn, html_header, site_title, site_title);
 		clock_t startc = clock();
-		for(long i = r->childCount; i > 0; i--){
+		for(cclong i = r->childCount; i > 0; i--){
 			t = readThread_(pDb, i);
 			if(r->childCount - i > 500) break; // only search the most recent 500 threads/replies
 
@@ -482,14 +485,14 @@ void postSomething(mg_connection* conn, const char* uri){
 			}
 
 			fileAttached = true;
-			string fpath = "images\\" + sfnamep + ext;
+			string fpath = "images/" + sfnamep + ext;
 
 			FILE *fp = fopen(fpath.c_str(), "wb");
 			fwrite(data, 1, data_len, fp);
 			fclose(fp);
 
 			strcpy(var4, (sfnamep + ext).c_str());
-			printf("Image uploaded: [%s] at %s", var4, nowNow());
+			fprintf(log_file, "Image uploaded: [%s] at %s", var4, nowNow());
 		}
 	}
 
@@ -499,7 +502,7 @@ void postSomething(mg_connection* conn, const char* uri){
 	if (strstr(var3, "sage")) sage = true;
 	//user trying to delete a thread/reply
 	if (strstr(var3, "delete")){
-		long id = extractLastNumber(conn);
+		cclong id = extractLastNumber(conn);
 		struct Thread * t = readThread_(pDb, id); //what he replies to is which he wants to delete
 		userDeleteThread(conn, id, verifyAdmin(conn));
 		return;
@@ -512,17 +515,18 @@ void postSomething(mg_connection* conn, const char* uri){
 		mg_printf_data(conn, html_header, site_title, site_title);
 		mg_printf_data(conn, "Image uploaded: [http://%s:%d/images/%s].</body></html>", 
 			conn->local_ip, conn->local_port, var4);
+		fprintf(log_file, "Image uploaded but not as a thread\n");
 		return;
 	}
 	//admin trying to update a thread/reply
 	if (strstr(var3, "update") && verifyAdmin(conn)){
-		long id = extractLastNumber(conn);
+		cclong id = extractLastNumber(conn);
 		struct Thread * t = readThread_(pDb, id); //what admin replies to is which he wants to update
 		//note the server doesn't filter the special chars such as "<" and ">"
 		//so it's possible for admin to use HTML here
 		writeString(pDb, t->content, var2, true); 
 		printMsg(conn, "Updated successfully");
-		printf("Admin edited thread no.%d at %s", t->threadID, nowNow());
+		fprintf(log_file, "Admin edited thread no.%d at %s", t->threadID, nowNow());
 		return;
 	}
 	//admin trying to post a slogan
@@ -534,7 +538,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		strncpy(t->content, "slogan", 16);
 		
 		printMsg(conn, "You have updated the slogan");
-		printf("Slogan updated at %s", nowNow());
+		fprintf(log_file, "Slogan updated at %s", nowNow());
 		
 		writeThread(pDb, 0, t, true);
 		return;
@@ -574,7 +578,7 @@ void postSomething(mg_connection* conn, const char* uri){
 			if (banlist.find(tmp[0]) != banlist.end()){
 				//this id is banned, so we destory it
 				destoryCookie(conn);
-				printf("Cookie Destoryed: [%s] at %s", ssid, nowNow());
+				fprintf(log_file, "Cookie Destoryed: [%s] at %s", ssid, nowNow());
 				printMsg(conn, "Your ID is banned");
 				return;
 			}
@@ -619,7 +623,7 @@ void postSomething(mg_connection* conn, const char* uri){
 	}
 
 	if (strstr(conn->uri, "/post_reply/")) {
-		long id = extractLastNumber(conn);
+		cclong id = extractLastNumber(conn);
 		struct Thread* t = readThread_(pDb, id);
 
 		if(t->state & LOCKED_THREAD)
@@ -648,8 +652,8 @@ void returnPage(mg_connection* conn, bool indexPage){
 	if(indexPage)
 		showThreads(conn, 1, threadsPerPage);
 	else{
-		long j = extractLastNumber(conn) * threadsPerPage;
-		long i = j - threadsPerPage + 1;
+		cclong j = extractLastNumber(conn) * threadsPerPage;
+		cclong i = j - threadsPerPage + 1;
 		showThreads(conn, i, j);
 	}
 
@@ -659,10 +663,7 @@ void returnPage(mg_connection* conn, bool indexPage){
 	time(&nn);
 	mg_printf_data(conn, "<span class='admin'><a>%s</a><a>Last: %.3lfh</a>", ssid,
 		difftime(nn, g_startuptime) / 3600);
-
-	PROCESS_MEMORY_COUNTERS pmc;
-    GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
-	mg_printf_data(conn, "<a>Mem: %d MB</a>", pmc.WorkingSetSize / 1024 / 1024);
+	
 	mg_printf_data(conn, "<a>Cookie: %s</a>", stop_newcookie ? "OFF" : "ON");
 	mg_printf_data(conn, "<a>CD: %ds</a></span>", cd_time);
 	mg_send_data(conn, "</html></body>", 14);
@@ -681,8 +682,8 @@ static void send_reply(struct mg_connection *conn) {
 		mg_send_header(conn, "charset", "utf-8");
 		mg_printf_data(conn, html_header, site_title, site_title);
 
-		long id = extractLastNumber(conn);
-		long pid = findParent(pDb, id);
+		cclong id = extractLastNumber(conn);
+		cclong pid = findParent(pDb, id);
 
 		if (pid == -1){
 			printMsg(conn, "This thread has been deleted.");
@@ -711,7 +712,7 @@ static void send_reply(struct mg_connection *conn) {
 			if(strcmp(ssid, "") != 0){
 				strncpy(adminCookie, ssid, 64);
 				printMsg(conn, "Admin's cookie has been set to %s", adminCookie);
-				printf("New admin cookie %s at %s", adminCookie, nowNow());
+				fprintf(log_file, "New admin cookie %s at %s", adminCookie, nowNow());
 			}
 			else
 				printMsg(conn, "Can't set admin's cookie to null");
@@ -727,8 +728,8 @@ static void send_reply(struct mg_connection *conn) {
 		string url(conn->uri);
 		vector<string> tmp = split(url, "/");
 
-		long newstate = atol(tmp[tmp.size() - 1].c_str());
-		long tid  = atol(tmp[tmp.size() - 2].c_str());
+		cclong newstate = atol(tmp[tmp.size() - 1].c_str());
+		cclong tid  = atol(tmp[tmp.size() - 2].c_str());
 
 		if (verifyAdmin(conn)){
 			struct Thread * t = readThread_(pDb, tid);
@@ -741,7 +742,7 @@ static void send_reply(struct mg_connection *conn) {
 		}
 	}
 	else if (strstr(conn->uri, "/delete/")){
-		long id = extractLastNumber(conn);
+		cclong id = extractLastNumber(conn);
 		struct Thread * t = readThread_(pDb, id); 
 
 		if (verifyAdmin(conn))
@@ -781,12 +782,12 @@ static void send_reply(struct mg_connection *conn) {
 			if (iter == xlist.end()){
 				xlist.insert(id);
 				printMsg(conn, "You have banned ID/IP: %s.", id.c_str());
-				printf("ID/IP Banned: [%s] at %s", id.c_str(), nowNow());
+				fprintf(log_file, "ID/IP Banned: [%s] at %s", id.c_str(), nowNow());
 			}
 			else{
 				xlist.erase(iter);
 				printMsg(conn, "You have UNbanned ID/IP: %s.", id.c_str());
-				printf("ID/IP Unbanned: [%s] at %s", id.c_str(), nowNow());
+				fprintf(log_file, "ID/IP Unbanned: [%s] at %s", id.c_str(), nowNow());
 			}
 
 			std::ofstream f(ipbanlist_path);
@@ -813,7 +814,7 @@ static void send_reply(struct mg_connection *conn) {
 			mg_printf_data(conn, html_header, site_title, site_title);
 			clock_t startc = clock();
 
-			for(long i = r->childCount; i > 0; i--){
+			for(cclong i = r->childCount; i > 0; i--){
 				t = readThread_(pDb, i);
 				if(strstr(conn->uri, "/ip/")){
 					if(strcmp(id.c_str(), t->email) == 0)
@@ -840,7 +841,7 @@ static void send_reply(struct mg_connection *conn) {
 	else if (strstr(conn->uri, "/rename/")){
 		string url(conn->uri);
 		vector<string> tmp = split(url, "/");
-		string oldname = "images\\" + tmp[tmp.size() - 1];
+		string oldname = "images/" + tmp[tmp.size() - 1];
 		string newname = oldname + ".tmp";
 
 		if (verifyAdmin(conn)){
@@ -854,7 +855,7 @@ static void send_reply(struct mg_connection *conn) {
 	}
 	else if (strstr(conn->uri, "/images/")){
 		const char *ims = mg_get_header(conn, "If-Modified-Since");
-		//printf("[%s]\n", ims);
+		//fprintf(log_file, "[%s]\n", ims);
 		if (ims)
 			if (strcmp(ims, "") != 0){
 				//browser should have a cache, since we are running a semi-static imageboard, 
@@ -866,7 +867,7 @@ static void send_reply(struct mg_connection *conn) {
 		string url(conn->uri);
 		vector<string> tmp = split(url, "/");
 		char ipath[64];
-		strcpy(ipath, ("images\\" + tmp[tmp.size() - 1]).c_str());
+		strcpy(ipath, ("images/" + tmp[tmp.size() - 1]).c_str());
 
 		FILE *fp; struct stat st;
 		char buf[1024];
@@ -881,7 +882,7 @@ static void send_reply(struct mg_connection *conn) {
 				"Last-Modified: Sat, 31 Jul 1993 00:00:00 GMT\r\n"
 				"Expires: %s\r\n"
 				"Cache-Control: max-age=2592000\r\n"
-				"Content-Length: %lu\r\n\r\n", expire, (unsigned long)st.st_size);
+				"Content-Length: %lu\r\n\r\n", expire, (unsigned cclong)st.st_size);
 			while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
 				mg_write(conn, buf, n);
 			}
@@ -895,7 +896,7 @@ static void send_reply(struct mg_connection *conn) {
 		if (verifyAdmin(conn)){
 			stop_newcookie = strstr(conn->uri, "/close") ? true: false;
 			printMsg(conn, "Your have closed/opened new cookie delivering.");
-			printf("Cookie closed/opened at %s", nowNow());
+			fprintf(log_file, "Cookie closed/opened at %s", nowNow());
 		}else{
 			printMsg(conn, "Your don't have the permission.");
 			checkIP(conn, true);
@@ -903,6 +904,8 @@ static void send_reply(struct mg_connection *conn) {
 	}
 	else 
 		returnPage(conn, true);
+
+	fflush(log_file);
 }
 
 static int ev_handler(struct mg_connection *conn, enum mg_event ev) {
@@ -926,20 +929,35 @@ int main(int argc, char *argv[])
 	threadsPerPage = 5;
 	char *lport = "8080";
 	char *zPath = "default.db"; 
-	
+	char log_file_path[256];
+	log_file = stdout;
+
 	for (int i = 0; i < argc; ++i){
 		if (strcmp(argv[i], "-database") == 0){
 			zPath = new char[256];
 			strcpy(zPath, argv[++i]);
-			break;
+			continue;
+		}
+		if (strcmp(argv[i], "-log") == 0){
+			strcpy(log_file_path, argv[++i]);
+			log_file = fopen(log_file_path, "a");
+			continue;
 		}
 	}
 
 	int rc = unqlite_open(&pDb, zPath, UNQLITE_OPEN_CREATE);
 	if (rc != UNQLITE_OK) Fatal("Out of memory");
 
-	printf("Database: \t\t[%s]\n", zPath);
+	struct tm * timeinfo;
+	time_t cur = time(NULL);
+	timeinfo = localtime(&(cur));
+	char timetmp[64];
+	strftime(timetmp, 64, "%Y-%m-%d %X", timeinfo);
 
+	fprintf(log_file, "===============================");
+	fprintf(log_file, "Start Time: \t\t[%s]\n", timetmp);
+	fprintf(log_file, "Database: \t\t[%s]\n", zPath);
+	fprintf(log_file, "Log File: \t\t[%s][%d]\n", log_file_path, log_file);
 	//generate a random admin password
 	admin_pass = new char[11];
 	ipbanlist_path = new char[32];
@@ -951,7 +969,7 @@ int main(int argc, char *argv[])
 
 	for (int i = 0; i < argc; ++i){
 		if (strcmp(argv[i], "-newprofile") == 0) {
-			printf("Database: \t\t[New Profile]\n");
+			fprintf(log_file, "Database: \t\t[New Profile]\n");
 			resetDatabase(pDb);
 		}
 
@@ -1005,16 +1023,16 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
-		if (strcmp(argv[i], "-NOGPFAULTERRORBOX") == 0)
-			SetErrorMode(SEM_NOGPFAULTERRORBOX);
+		// if (strcmp(argv[i], "-NOGPFAULTERRORBOX") == 0)
+		// 	SetErrorMode(SEM_NOGPFAULTERRORBOX);
 	}
 
-	printf("Site Title: \t\t[%s]\nSite Admin Password: \t[%s]\n", site_title, admin_pass);
-	printf("Threads Per Page: \t[%d]\n", threadsPerPage);
-	printf("Cooldown Time: \t\t[%ds]\n", cd_time);
-	printf("MD5 Salt: \t\t[%s]\n", md5_salt);
-	printf("Admin Cookie: \t\t[%s]\n", adminCookie);
-	printf("IP Ban List: \t\t[%s]\n", ipbanlist_path);
+	fprintf(log_file, "Site Title: \t\t[%s]\nSite Admin Password: \t[%s]\n", site_title, admin_pass);
+	fprintf(log_file, "Threads Per Page: \t[%d]\n", threadsPerPage);
+	fprintf(log_file, "Cooldown Time: \t\t[%ds]\n", cd_time);
+	fprintf(log_file, "MD5 Salt: \t\t[%s]\n", md5_salt);
+	fprintf(log_file, "Admin Cookie: \t\t[%s]\n", adminCookie);
+	fprintf(log_file, "IP Ban List: \t\t[%s]\n", ipbanlist_path);
 
 	std::ifstream f(ipbanlist_path);
 	string line;
@@ -1025,7 +1043,8 @@ int main(int argc, char *argv[])
 
 	mg_set_option(server, "listening_port", lport);
 
-	printf("Listening on Port: \t[%s]\n", mg_get_option(server, "listening_port"));
+	fprintf(log_file, "Listening on Port: \t[%s]\n", mg_get_option(server, "listening_port"));
+	fflush(log_file);
 
 	time(&g_startuptime);
 

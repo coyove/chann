@@ -8,6 +8,8 @@ extern "C" {
 #include <vector>
 #include <time.h>
 #include "helper.h"
+#include <string>
+#include <cstring>
 
 char* generateSSID(const char *user_name);
 int renewCookie(mg_connection* conn, const char* username);

@@ -4,6 +4,7 @@
 extern char* md5_salt;
 extern bool stop_newcookie;
 extern unqlite *pDb;
+extern FILE* log_file;
 
 void setCookie(mg_connection *conn, char *ssid){
 	char expire[100];
@@ -71,7 +72,7 @@ char* giveNewCookie(mg_connection* conn){
 
 	setCookie(conn, finalssid);
 
-	printf("New cookie delivered: [%s] at %s", finalssid, nowNow());
+	fprintf(log_file, "New cookie delivered: [%s] at %s", finalssid, nowNow());
 
 	return username;
 }

@@ -99,7 +99,7 @@ bool startsWith(std::string const &fullString, std::string const &start) {
 	}
 }
 
-long extractLastNumber(mg_connection* conn){
+cclong extractLastNumber(mg_connection* conn){
 	string url(conn->uri);
 	vector<string> tmp = split(url, "/");
 	string num = tmp[tmp.size() - 1];
