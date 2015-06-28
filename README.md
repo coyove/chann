@@ -9,11 +9,9 @@ cchan目前仍是一个非常早期的预览版本，代码基本不会对运行
 
 编译cchan
 ---------
-cchan在`Windows 8.1`和`Visual Studio 2012 Express`下编译通过，若要在Linux平台下编译，请使用GCC 4.8以上的版本。
+cchan在`Windows 8.1`和`Visual Studio 2012 Express`下编译通过，若要在Linux平台下编译，请使用64位系统和GCC 4.8以上的版本并运行`./build.sh`。
 
-请在64位系统中进行编译。
-
-cchan的推荐运行平台为`Windows Sever 2012`和`Windows Sever 2008`，通过修改VS中的`Platform Toolset`为`Visual Studio 2012 - Windows XP (v110_xp)`可以让cchan在`Windows Sever 2003`下运行，但*实测后BUG太多不推荐*。
+通过修改VS中的`Platform Toolset`为`Visual Studio 2012 - Windows XP (v110_xp)`可以让cchan在`Windows Sever 2003`下运行，但*实测后BUG太多不推荐*。
 
 cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。所以在修改代码时，请*不要输入任何中文*，请*输入中文字符的转义代码*。
 [汉字转化unicode编码](http://www.bangnishouji.com/tools/chtounicode.html)
@@ -34,3 +32,7 @@ cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。�
 -----
 本质上讲，cchan除了设置发言间隔时间和ban ID之外，安全性是很低的，尤其是update、slogan、delete、sage、ban、state等操作完全是明文传输，
 为了提高安全性，推荐使用stunnel重定向一个HTTPS连接。
+
+操作
+----
+![管理员工具栏](https://raw.github.com/coyove/cchan/manual.jpg)
