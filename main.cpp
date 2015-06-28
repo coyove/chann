@@ -44,6 +44,15 @@ map<string, cclong> iplist;		//remote ip list
 char adminCookie[64];			//Admin's cookie
 FILE* log_file;					//log file
 
+void printFooter(mg_connection* conn){
+	char * footer = readString(pDb, "footer");
+	if(footer){
+		mg_printf_data(conn, "<div id='footer'>%s</div>", footer);
+		delete [] footer;
+	}
+	mg_printf_data(conn, "</body></html>");
+}
+
 void printMsg(mg_connection* conn, const char* msg, ...){
 	mg_printf_data(conn, html_header, site_title, site_title);
 	
@@ -54,7 +63,7 @@ void printMsg(mg_connection* conn, const char* msg, ...){
 	va_end(argptr);
 
 	mg_printf_data(conn, html_error, tmpbuf);
-	mg_printf_data(conn, "</body></html>");
+	printFooter(conn);
 }
 
 bool checkIP(mg_connection* conn, bool verbose = false){
@@ -250,12 +259,15 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 				//sendThread(conn, r, true, false);
 				vt.push_back(r);
 				
-				int counter = 5;
+				int counter = 4;
 
 				while (r->prevThread != rid){
-					if(--counter == 0) break;
+					//if(--counter == 0) break;
 					r = readThread_(pDb, r->prevThread);
-					vt.push_back(r);
+					if(r->state & NORMAL_DISPLAY){
+						vt.push_back(r);	
+						if(--counter == 0) break;
+					}
 				}
 
 				for (int i = vt.size() - 1; i >= 0; i--){
@@ -408,7 +420,7 @@ void userListThread(mg_connection* conn){
 		}
 		clock_t endc = clock();
 		mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
-		mg_send_data(conn, "</html></body>", 14);
+		printFooter(conn);
 
 		if(r) delete r;
 	}else
@@ -543,6 +555,15 @@ void postSomething(mg_connection* conn, const char* uri){
 		writeThread(pDb, 0, t, true);
 		return;
 	}
+	//admin trying to update the footer
+	//note that the content of the footer is represented in HTML format
+	if (strstr(var3, "footer") && verifyAdmin(conn)){	
+		writeString(pDb, "footer", var2, true);
+		
+		printMsg(conn, "You have updated the footer");
+		fprintf(log_file, "Footer updated at %s", nowNow());
+		return;
+	}
 	//image or comment or both
 	if (strcmp(var2, "") == 0 && !fileAttached) {
 		printMsg(conn, "Please enter something");
@@ -632,7 +653,7 @@ void postSomething(mg_connection* conn, const char* uri){
 			newReply(pDb, id, tmpcontent.c_str(), var1, conn->remote_ip, username, var4, sage);
 			mg_printf_data(conn, html_header, site_title, site_title);
 			mg_printf_data(conn, html_redirtothread, id, id, id);
-			mg_printf_data(conn, "</body></html>");
+			printFooter(conn);
 		}
 
 		if(t) delete t;
@@ -666,7 +687,7 @@ void returnPage(mg_connection* conn, bool indexPage){
 	
 	mg_printf_data(conn, "<a>Cookie: %s</a>", stop_newcookie ? "OFF" : "ON");
 	mg_printf_data(conn, "<a>CD: %ds</a></span>", cd_time);
-	mg_send_data(conn, "</html></body>", 14);
+	printFooter(conn);
 }
 
 static void send_reply(struct mg_connection *conn) {
@@ -697,7 +718,7 @@ static void send_reply(struct mg_connection *conn) {
 
 			showThread(conn, id);
 		}
-		mg_send_data(conn, "</html></body>", 14);
+		printFooter(conn);
 	}
 	else if (strstr(conn->uri, "/post_reply/")) {
 		postSomething(conn, conn->uri);
@@ -828,7 +849,7 @@ static void send_reply(struct mg_connection *conn) {
 			}
 			clock_t endc = clock();
 			mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
-			mg_send_data(conn, "</html></body>", 14);
+			printFooter(conn);
 
 			if(r) delete r;
 		}
