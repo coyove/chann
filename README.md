@@ -35,4 +35,4 @@ cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。�
 
 操作
 ----
-![管理员工具栏](https://raw.github.com/coyove/cchan/manual.jpg)
+![管理员工具栏](https://raw.githubusercontent.com/coyove/cchan/master/manual.jpg)
