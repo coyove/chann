@@ -5,7 +5,9 @@ cchan是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http:/
 
 cchan目前仍是一个非常早期的预览版本，代码基本不会对运行结果进行检查，这将导致潜在Unhandled Exceptions的出现。即便短时间内没有问题，这也是非常要命的。
 
-[Demo](http://h.waifu.cc/)，托管于阿里云ECS，配置：单核、1G内存、Server 2012 x64 中文标准版、峰值带宽100Mbps。
+~~[Demo](http://h.waifu.cc/)，托管于阿里云ECS，配置：单核、1G内存、Server 2012 x64 中文标准版、峰值带宽100Mbps。~~
+
+[Demo](http://h.waifu.cc/)，托管于Linode，配置：单核、1G内存、CentOS 7 x64。
 
 编译cchan
 ---------
