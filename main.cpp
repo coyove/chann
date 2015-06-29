@@ -159,8 +159,12 @@ void sendThread(mg_connection* conn, struct Thread* r,
 				r->imgSrc, st.st_size / 1024);
 
 		}
-		else
-			sprintf(display_image, "<div class='img'><a href='/images/%s'><img class='imgs' src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
+		else{
+			if(reply)
+				sprintf(display_image, "<div class='img'><a href='/images/%s'><img class='imgs' src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
+			else
+				sprintf(display_image, "<div class='img'><a href='/images/%s'><img src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
+		}
 	}
 
 	char admin_ctrl[512];
@@ -831,18 +835,27 @@ static void send_reply(struct mg_connection *conn) {
 			// the following actions could be extremely slow
 			struct Thread *r = readThread_(pDb, 0); 
 			struct Thread *t;
+			bool ipflag = strstr(conn->uri, "/ip/"), killflag = strstr(conn->uri, "/kill/");
 
 			mg_printf_data(conn, html_header, site_title, site_title);
 			clock_t startc = clock();
 
 			for(cclong i = r->childCount; i > 0; i--){
 				t = readThread_(pDb, i);
-				if(strstr(conn->uri, "/ip/")){
-					if(strcmp(id.c_str(), t->email) == 0)
-						sendThread(conn, t, true, false, true, true, true);
+				if(ipflag){
+					if(strcmp(id.c_str(), t->email) == 0){
+						if(killflag)
+							deleteThread(pDb, i);
+						else
+							sendThread(conn, t, true, false, true, true, true);
+					}
 				}else{
-					if(strcmp(id.c_str(), t->ssid) == 0)
-						sendThread(conn, t, true, false, true, true, true);
+					if(strcmp(id.c_str(), t->ssid) == 0){
+						if(killflag)
+							deleteThread(pDb, i);
+						else
+							sendThread(conn, t, true, false, true, true, true);
+					}
 				}
 
 				if(t) delete t;
