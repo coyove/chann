@@ -40,6 +40,7 @@ unordered_set<string> banlist;	//cookie ban list
 unordered_set<string> ipbanlist;//ip ban list
 char* ipbanlist_path;			//file to store ip ban list
 bool stop_newcookie = false;	//stop delivering new cookies
+bool stop_ipcheck = false;
 map<string, cclong> iplist;		//remote ip list
 char adminCookie[64];			//Admin's cookie
 FILE* log_file;					//log file
@@ -62,11 +63,13 @@ void printMsg(mg_connection* conn, const char* msg, ...){
 	vsprintf(tmpbuf, msg, argptr);
 	va_end(argptr);
 
-	mg_printf_data(conn, html_error, tmpbuf);
+	mg_printf_data(conn, html_error, "/ ", tmpbuf, "/ ", "homepage");
 	printFooter(conn);
 }
 
 bool checkIP(mg_connection* conn, bool verbose = false){
+	if(stop_ipcheck) return true;
+	
 	time_t rawtime;
 	time(&rawtime);
 	string sip(conn->remote_ip);
@@ -364,19 +367,21 @@ void showThread(mg_connection* conn, cclong id){
 }
 
 void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
-	char ssid[128], username[10];
-	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-	vector<string> zztmp = split(string(ssid), string("|"));
-	if (zztmp.size() != 2){
-		printMsg(conn, "Your cookie is invalid");
-		return;
-	}
+	// char ssid[128], username[10];
+	// mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
+	// vector<string> zztmp = split(string(ssid), string("|"));
+	// if (zztmp.size() != 2){
+	// 	printMsg(conn, "Your cookie is invalid");
+	// 	return;
+	// }
 
-	strncpy(username, zztmp[0].c_str(), 10);
-	char testssid[33];
-	strcpy(testssid, generateSSID(username));
+	// strncpy(username, zztmp[0].c_str(), 10);
+	// char testssid[33];
+	// strcpy(testssid, generateSSID(username));
+	//strcmp(testssid, zztmp[1].c_str()) == 0
+	char *username = verifyCookie(conn);
 
-	if (strcmp(testssid, zztmp[1].c_str()) == 0){
+	if (username){
 		struct Thread* t = readThread_(pDb, tid);
 
 		if (strcmp(t->ssid, username) == 0 || admin){
@@ -392,22 +397,25 @@ void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
 		if(t) delete t;
 	}else
 		printMsg(conn, "Your cookie is invalid");
+
+	delete [] username;
 }
 
 void userListThread(mg_connection* conn){
-	char ssid[128], username[10];
-	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-	vector<string> zztmp = split(string(ssid), string("|"));
-	if (zztmp.size() != 2){
-		printMsg(conn, "Your cookie is invalid");
-		return;
-	}
+	// char ssid[128], username[10];
+	// mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
+	// vector<string> zztmp = split(string(ssid), string("|"));
+	// if (zztmp.size() != 2){
+	// 	printMsg(conn, "Your cookie is invalid");
+	// 	return;
+	// }
 
-	strncpy(username, zztmp[0].c_str(), 10);
-	char testssid[33];
-	strcpy(testssid, generateSSID(username));
+	// strncpy(username, zztmp[0].c_str(), 10);
+	// char testssid[33];
+	// strcpy(testssid, generateSSID(username));
+	char *username = verifyCookie(conn);
 
-	if (strcmp(testssid, zztmp[1].c_str()) == 0){
+	if (username){
 		struct Thread *r = readThread_(pDb, 0); 
 		struct Thread *t;
 
@@ -429,6 +437,8 @@ void userListThread(mg_connection* conn){
 		if(r) delete r;
 	}else
 		printMsg(conn, "Your cookie is invalid");
+
+	delete [] username;
 }
 
 void postSomething(mg_connection* conn, const char* uri){
@@ -664,7 +674,6 @@ void postSomething(mg_connection* conn, const char* uri){
 	}
 	else{
 		newThread(pDb, tmpcontent.c_str(), var1, conn->remote_ip, username, var4, sage);
-		//mg_send_data(conn, html_redir, strlen(html_redir));
 		printMsg(conn, "Successfully start a new thread");
 	}
 }
@@ -914,9 +923,9 @@ static void send_reply(struct mg_connection *conn) {
 		if (stat(ipath, &st) == 0 && (fp = fopen(ipath, "rb")) != NULL) {
 			mg_printf(conn, "HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\n"
 				"Last-Modified: Sat, 31 Jul 1993 00:00:00 GMT\r\n"
-				"Expires: %s\r\n"
-				"Cache-Control: max-age=2592000\r\n"
-				"Content-Length: %lu\r\n\r\n", expire, (unsigned cclong)st.st_size);
+				"Expires: -1\r\n"
+				"Cache-Control: must-revalidate\r\n"
+				"Content-Length: %lu\r\n\r\n", (unsigned cclong)st.st_size);
 			while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
 				mg_write(conn, buf, n);
 			}
@@ -1046,6 +1055,9 @@ int main(int argc, char *argv[])
 
 		if (strcmp(argv[i], "-closecookie") == 0)
 			stop_newcookie = true;
+
+		if (strcmp(argv[i], "-benchmark") == 0)
+			stop_ipcheck = true;
 
 		if (strcmp(argv[i], "-admincookie") == 0){
 			strcpy(adminCookie, argv[++i]);
