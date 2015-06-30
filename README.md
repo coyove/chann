@@ -38,3 +38,8 @@ cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。�
 操作
 ----
 ![管理员工具栏](https://raw.githubusercontent.com/coyove/cchan/master/manual.jpg)
+
+性能
+----
+使用jMeter对[Demo](http://h.waifu.cc/)站点进行远程测试，本地环境为中国电信10Mbps。
+使用Apache Benchmark对[Demo](http://h.waifu.cc/)站点进行本地测试。
