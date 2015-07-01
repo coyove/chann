@@ -93,6 +93,12 @@ char *html_header =
 "background-color: black;"
 "}"
 "</style>"
+"<script type=\"text/javascript\">"
+"function dis_slogan(){"
+"var elem = document.getElementById('slogan');"
+"elem.innerText = elem.innerHTML;"
+"}"
+"</script>"
 "</head>"
 "<body>"
 "<div style='text-align: center'><a href='/'><h1>%s</h1></a></div>";
