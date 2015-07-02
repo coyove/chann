@@ -230,6 +230,63 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	mg_send_data(conn, tmp, len);
 }
 
+void showGallery(mg_connection* conn, cclong startID, cclong endID){
+	struct Thread *r = readThread_(pDb, 0); // get the root thread
+	cclong c = 0;
+	clock_t startc = clock();
+
+	bool admin_view = verifyAdmin(conn);
+
+	cclong totalThreads = r->childCount;
+	cclong totalPages = 100;
+
+	char *slogan = readString(pDb, r->content);
+	if(slogan) {
+		if(admin_view)
+			mg_printf_data(conn, "<button onclick='dis_slogan()'>RAW</button>");
+		mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
+		delete [] slogan;
+	}
+
+	for(cclong i = totalThreads; i > 0; --i){
+		delete r;
+		r = readThread_(pDb, i);
+		if(strlen(r->imgSrc) == 15 && r->state & NORMAL_DISPLAY) {
+			c++;
+			if (c >= startID && c <= endID){
+				mg_printf_data(conn, "<hr>");
+				sendThread(conn, r, false, true, true, false, admin_view);
+			}
+		}
+		
+		if (c == endID + 1) break;
+	}
+	if(r) delete r;
+	mg_printf_data(conn, "<hr>");
+
+	cclong current_page = endID / threadsPerPage;
+
+	for (cclong i = 1; i <= totalPages; ++i){
+		char tmp[256];
+		int len;
+
+		if (abs(current_page - i) <= 5){
+			if (i == current_page) //current page
+				len = sprintf(tmp, "%d", i);
+			else
+				len = sprintf(tmp, "<a class='pager' href=\"/gallery/%d\">%d</a>", i, i);
+
+			mg_send_data(conn, tmp, len);
+		}
+	}
+	mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128193;&nbsp;Timeline</a>"
+							"<a class='pager' href='/list'>&#128100;&nbsp;My Posts</a>");
+	mg_printf_data(conn, "<br/><br/>");
+	
+	clock_t endc = clock();
+	mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
+}
+
 void showThreads(mg_connection* conn, cclong startID, cclong endID){
 	struct Thread *r = readThread_(pDb, 0); // get the root thread
 	cclong c = 0;
@@ -311,7 +368,7 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 
 		if (abs(current_page - i) <= 5){
 			if (i == current_page) //current page
-				len = sprintf(tmp, "<td>%d</td>", i);
+				len = sprintf(tmp, "%d", i);
 			else
 				if (i == 1) 
 					len = sprintf(tmp, "<a class='pager' href=\"/\">1</a>");
@@ -322,6 +379,8 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 		}
 	}
 	//mg_send_data(conn, "</tr></table>", 13);
+	mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128193;&nbsp;Gallery</a>"
+		"<a class='pager' href='/list'>&#128100;&nbsp;My Posts</a>");
 	mg_printf_data(conn, "<br/><br/>");
 	
 	clock_t endc = clock();
@@ -377,18 +436,6 @@ void showThread(mg_connection* conn, cclong id){
 }
 
 void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
-	// char ssid[128], username[10];
-	// mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-	// vector<string> zztmp = split(string(ssid), string("|"));
-	// if (zztmp.size() != 2){
-	// 	printMsg(conn, "Your cookie is invalid");
-	// 	return;
-	// }
-
-	// strncpy(username, zztmp[0].c_str(), 10);
-	// char testssid[33];
-	// strcpy(testssid, generateSSID(username));
-	//strcmp(testssid, zztmp[1].c_str()) == 0
 	char *username = verifyCookie(conn);
 
 	if (username){
@@ -412,17 +459,6 @@ void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
 }
 
 void userListThread(mg_connection* conn){
-	// char ssid[128], username[10];
-	// mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-	// vector<string> zztmp = split(string(ssid), string("|"));
-	// if (zztmp.size() != 2){
-	// 	printMsg(conn, "Your cookie is invalid");
-	// 	return;
-	// }
-
-	// strncpy(username, zztmp[0].c_str(), 10);
-	// char testssid[33];
-	// strcpy(testssid, generateSSID(username));
 	char *username = verifyCookie(conn);
 
 	if (username){
@@ -690,7 +726,7 @@ void postSomething(mg_connection* conn, const char* uri){
 	}
 }
 
-void returnPage(mg_connection* conn, bool indexPage){
+void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
 	mg_send_header(conn, "charset", "utf-8");
 	mg_printf_data(conn, html_header, site_title, site_title);
 	mg_printf_data(conn, html_form, "/post_thread", "[Start a New Thread]");
@@ -700,18 +736,20 @@ void returnPage(mg_connection* conn, bool indexPage){
 	else{
 		cclong j = extractLastNumber(conn) * threadsPerPage;
 		cclong i = j - threadsPerPage + 1;
-		showThreads(conn, i, j);
+		if(galleryPage)
+			showGallery(conn, i, j);
+		else
+			showThreads(conn, i, j);
 	}
 
 	char ssid[10];
 	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 9); ssid[9] = 0;
 	time_t nn;
 	time(&nn);
-	mg_printf_data(conn, "<span class='admin'><a href='/list'>%s</a><a>Last: %.3lfh</a>", ssid,
-		difftime(nn, g_startuptime) / 3600);
-	
-	mg_printf_data(conn, "<a>Cookie: %s</a>", stop_newcookie ? "OFF" : "ON");
-	mg_printf_data(conn, "<a>CD: %ds</a></span>", cd_time);
+	mg_printf_data(conn, "<small>Last: %.3lfh, ", difftime(nn, g_startuptime) / 3600);
+	mg_printf_data(conn, "Cookie: %s, ", stop_newcookie ? "OFF" : "ON");
+	mg_printf_data(conn, "CD: %ds</small><br/>", cd_time);
+	//mg_printf_data(conn, "<span class='admin'><a href='/list'>%s</a>%s</span>", ssid, galleryPage ? "<a href='/'>Timeline</a>" : "<a href='/gallery/1'>Gallery</a>");
 	printFooter(conn);
 }
 
@@ -723,6 +761,9 @@ static void send_reply(struct mg_connection *conn) {
 	}
 	else if (strstr(conn->uri, "/page/")) {
 		returnPage(conn, false);
+	}
+	else if (strstr(conn->uri, "/gallery/")) {
+		returnPage(conn, false, true);
 	}
 	else if (strstr(conn->uri, "/thread/")) {
 		mg_send_header(conn, "charset", "utf-8");
@@ -964,6 +1005,9 @@ static void send_reply(struct mg_connection *conn) {
 }
 
 static int ev_handler(struct mg_connection *conn, enum mg_event ev) {
+
+	//printf("uri = '%s'\n", conn->uri);
+
 	if (ev == MG_REQUEST) {
 		send_reply(conn);
 		return MG_TRUE;
@@ -1102,6 +1146,8 @@ int main(int argc, char *argv[])
 	mg_set_option(server, "listening_port", lport);
 
 	fprintf(log_file, "Listening on Port: \t[%s]\n", mg_get_option(server, "listening_port"));
+	//printf("Listening on Port: \t[%s]\n", mg_get_option(server, "listening_port"));
+
 	fflush(log_file);
 
 	time(&g_startuptime);
