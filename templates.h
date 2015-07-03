@@ -3,7 +3,7 @@ char *html_form =
 "<table class='postform'>"
 "<tr id='formtitle'><td colspan='3'><span>%s</span></td></tr>"
 "<tr><td>Subject:</td><td><input type = \"text\" name = \"input_name\" style='width:100%%'/></td>"
-"<td><input type =\"submit\"/></td></tr>"
+"<td><input type =\"submit\" value='Post'/></td></tr>"
 "<tr><td>Options:</td><td colspan='2'><input type = \"text\" name = \"input_email\" style='width:100%%'/></td></tr>"
 "<tr><td rowspan='2'>Comment:</td>"
 "<td colspan='2'><textarea rows='8' style='width:100%%' name = \"input_content\" id='comment'></textarea></td></tr>"
@@ -48,7 +48,7 @@ char *html_header =
 "line-height: 20px;"
 "}"
 "a,a:hover,a:visited {text-decoration: none;  color: #39C;}"
-".pager {margin:3px; padding: 5px; background-color:white; border:solid 1px #ccc}"
+".pager {margin:3px; padding: 5px; background-color:white; border:solid 1px #ccc; line-height: 2.5em;}"
 ".postform {border: dashed 1px;padding: 3px;max-width:400px;width:100%%; margin:auto}"
 "#formtitle {background-color: #21759B;color: white; text-align:center}"
 //".del,.del a {color: #aaa}"
@@ -101,4 +101,6 @@ char *html_header =
 "</script>"
 "</head>"
 "<body>"
-"<div style='text-align: center'><a href='/'><h1>%s</h1></a></div>";
+"<div style='text-align: center'>"
+"<a href='/'><h1 style='line-height: 1em;'>%s</h1></a>"
+"</div>";

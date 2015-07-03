@@ -157,7 +157,8 @@ void sendThread(mg_connection* conn, struct Thread* r,
 		strcpy(reply_count, "");
 
 	char display_image[128];
-	if (strcmp(r->imgSrc, "") == 0 || strcmp(r->imgSrc, "x") == 0)
+	//printf("[%s]\n", r->imgSrc);
+	if (strlen(r->imgSrc) != 15)// == 0 || strcmp(r->imgSrc, "x") == 0)
 		strcpy(display_image, "");
 	else{
 		if(cut_image){
@@ -279,7 +280,7 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
 			mg_send_data(conn, tmp, len);
 		}
 	}
-	mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128193;&nbsp;Timeline</a>"
+	mg_printf_data(conn, "|<a class='pager' href='/'>&#128193;&nbsp;Timeline</a>"
 							"<a class='pager' href='/list'>&#128100;&nbsp;My Posts</a>");
 	mg_printf_data(conn, "<br/><br/>");
 	
@@ -587,9 +588,10 @@ void postSomething(mg_connection* conn, const char* uri){
 	}
 	if (strstr(var3, "url")){
 		mg_printf_data(conn, html_header, site_title, site_title);
-		mg_printf_data(conn, "Image uploaded: [http://%s:%d/images/%s].</body></html>", 
+		mg_printf_data(conn, "Image uploaded: <div style='background-color:white; padding: 1em;border: dashed 1px'>"
+			"http://%s:%d/images/%s</div></body></html>", 
 			conn->local_ip, conn->local_port, var4);
-		fprintf(log_file, "Image uploaded but not as a thread\n");
+		fprintf(log_file, "Image uploaded but not as a thread.\n");
 		return;
 	}
 	//admin trying to update a thread/reply
@@ -1095,7 +1097,7 @@ int main(int argc, char *argv[])
 		}
 
 		if (strcmp(argv[i], "-port") == 0){
-			lport = new char[6];
+			lport = new char[32];
 			strcpy(lport, argv[++i]);
 			continue;
 		}
@@ -1134,12 +1136,13 @@ int main(int argc, char *argv[])
 	fprintf(log_file, "Cooldown Time: \t\t[%ds]\n", cd_time);
 	fprintf(log_file, "MD5 Salt: \t\t[%s]\n", md5_salt);
 	fprintf(log_file, "Admin Cookie: \t\t[%s]\n", adminCookie);
-	fprintf(log_file, "IP Ban List: \t\t[%s]\n", ipbanlist_path);
+	fprintf(log_file, "IP Ban List: \t\t[%s] -> ", ipbanlist_path);
 
 	std::ifstream f(ipbanlist_path);
 	string line;
 	while (f >> line) if(line != "") ipbanlist.insert(line);
 	f.close();
+	fprintf(log_file, "Total: [%d]\n", ipbanlist.size());
 
 	struct mg_server *server = mg_create_server(NULL, ev_handler);
 
