@@ -1,6 +1,6 @@
 char *html_form =
 "<form method=\"POST\" action=\"%s\" enctype=\"multipart/form-data\">"
-"<table class='postform'>"
+"<table class='%s' id='posttable'>"
 "<tr id='formtitle'><td colspan='3'><span>%s</span></td></tr>"
 "<tr><td>Subject:</td><td><input type = \"text\" name = \"input_name\" style='width:100%%'/></td>"
 "<td><input type =\"submit\" value='Post'/></td></tr>"
@@ -14,6 +14,12 @@ char *html_form =
 "<tr><td>Image:</td><td colspan='2'><input type=\"file\" name=\"input_file\" style='width:100%%'/></td></tr>"
 "</table>"
 "</form>";
+
+char *show_hide_button =
+"<div id='showdiv' style='text-align: center'><button class='btn'"
+"onclick='document.getElementById(\"posttable\").className=\"postform\"; document.getElementById(\"showdiv\").className=\"hiding\"'>"
+"&#128172;&nbsp;New Thread"
+"</button><button class='btn' onclick='window.location=\"/list\";'>&#128100;&nbsp;My Posts</button></div>";
 
 char *html_error = 
 "<script type=\"text/javascript\">"
@@ -35,7 +41,7 @@ char *html_header =
 "<title>%s</title>"
 "<style>"
 ".header {background:#F0E0D6; display:table; padding: 0.2em}"
-".thread {margin: 3px;   word-break: break-word;}"
+".thread {margin: 3px; word-break: break-word;}"
 //".thread tr td {padding: 2px;word-wrap:break-word; word-break:break-all;}"
 "body {"
 "background: #ffe;"
@@ -49,9 +55,11 @@ char *html_header =
 "}"
 "a,a:hover,a:visited {text-decoration: none;  color: #39C;}"
 ".pager {margin:3px; padding: 5px; background-color:white; border:solid 1px #ccc; line-height: 2.5em;}"
+".pager-inv {margin:3px; padding: 5px; background-color:#39C; border:solid 1px #ccc; line-height: 2.5em; color: white}"
+".btn {margin:3px; padding: 3px 6px; background-color:white; border:solid 1px #ccc;}"
+".btn:hover {background-color:#39C; color: white }"
 ".postform {border: dashed 1px;padding: 3px;max-width:400px;width:100%%; margin:auto}"
 "#formtitle {background-color: #21759B;color: white; text-align:center}"
-//".del,.del a {color: #aaa}"
 "img {"
 "max-height: 250px; max-width: 250px;"
 "height: expression((document.documentElement.clientHeight||document.body.clientHeight) > 250?\"250px\":\"\");"
@@ -78,8 +86,10 @@ char *html_header =
 "}"
 "#slogan{"
 "background-color: white;"
+"font-size:12px;"
 "margin: 0.5em;"
-"padding: 0.25em;"
+"padding: 0.2em;"
+"line-height: 1.25em;"
 "}"
 ".admin a{"
 "border: dotted 1px;"
@@ -92,15 +102,10 @@ char *html_header =
 "color: white;"
 "background-color: black;"
 "}"
+".hiding {display: none}"
 "</style>"
-"<script type=\"text/javascript\">"
-"function dis_slogan(){"
-"var elem = document.getElementById('slogan');"
-"elem.innerText = elem.innerHTML;"
-"}"
-"</script>"
 "</head>"
 "<body>"
 "<div style='text-align: center'>"
-"<a href='/'><h1 style='line-height: 1em;'>%s</h1></a>"
+"<a href='/'><h1 style='line-height: 1.5em;'>%s</h1></a>"
 "</div>";

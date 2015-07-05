@@ -101,6 +101,18 @@ bool verifyAdmin(mg_connection* conn){
 	return (strcmp(ssid, adminCookie) == 0);
 }
 
+// Linux only
+unsigned long readMemusage(){
+	unsigned long dummy;
+	unsigned long res;
+
+	FILE *f = fopen("/proc/self/statm", "r");
+	if(!f) return 0;
+	fscanf(f,"%ld %ld %ld %ld %ld %ld %ld", &dummy, &res, &dummy, &dummy, &dummy, &dummy, &dummy);
+	fclose(f);
+	return res;
+}
+
 void doThread(mg_connection* conn, cclong tid, char STATE){
 	struct Thread* t = readThread_(pDb, tid);
 
@@ -243,9 +255,12 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
 
 	char *slogan = readString(pDb, r->content);
 	if(slogan) {
-		if(admin_view)
-			mg_printf_data(conn, "<button onclick='dis_slogan()'>RAW</button>");
 		mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
+		if(admin_view)
+			mg_printf_data(conn, "<script type=\"text/javascript\">"
+				"var elem = document.getElementById('slogan');"
+				"elem.innerText = elem.innerHTML;"
+				"</script>");
 		delete [] slogan;
 	}
 
@@ -273,15 +288,15 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
 
 		if (abs(current_page - i) <= 5){
 			if (i == current_page) //current page
-				len = sprintf(tmp, "%d", i);
+				len = sprintf(tmp, "<a class='pager-inv'>%d</a>", i);
 			else
 				len = sprintf(tmp, "<a class='pager' href=\"/gallery/%d\">%d</a>", i, i);
 
 			mg_send_data(conn, tmp, len);
 		}
 	}
-	mg_printf_data(conn, "|<a class='pager' href='/'>&#128193;&nbsp;Timeline</a>"
-							"<a class='pager' href='/list'>&#128100;&nbsp;My Posts</a>");
+	mg_printf_data(conn, "<a class='pager' href=\"/gallery/%d\">Next</a>", ++current_page);
+	mg_printf_data(conn, "|<a class='pager' href='/'>&#128193;&nbsp;Timeline</a>");
 	mg_printf_data(conn, "<br/><br/>");
 	
 	clock_t endc = clock();
@@ -306,9 +321,12 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 
 	char *slogan = readString(pDb, r->content);
 	if(slogan) {
-		if(admin_view)
-			mg_printf_data(conn, "<button onclick='dis_slogan()'>RAW</button>");
 		mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
+		if(admin_view)
+			mg_printf_data(conn, "<script type=\"text/javascript\">"
+				"var elem = document.getElementById('slogan');"
+				"elem.innerText = elem.innerHTML;"
+				"</script>");
 		delete [] slogan;
 	}
 
@@ -369,7 +387,7 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 
 		if (abs(current_page - i) <= 5){
 			if (i == current_page) //current page
-				len = sprintf(tmp, "%d", i);
+				len = sprintf(tmp, "<a class='pager-inv'>%d</a>", i);
 			else
 				if (i == 1) 
 					len = sprintf(tmp, "<a class='pager' href=\"/\">1</a>");
@@ -379,9 +397,8 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 			mg_send_data(conn, tmp, len);
 		}
 	}
-	//mg_send_data(conn, "</tr></table>", 13);
-	mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128193;&nbsp;Gallery</a>"
-		"<a class='pager' href='/list'>&#128100;&nbsp;My Posts</a>");
+	mg_printf_data(conn, "<a class='pager' href=\"/page/%d\">Next</a>", ++current_page);
+	mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128193;&nbsp;Gallery</a>");
 	mg_printf_data(conn, "<br/><br/>");
 	
 	clock_t endc = clock();
@@ -403,7 +420,7 @@ void showThread(mg_connection* conn, cclong id){
 	char zztmp[512];
 	int len = sprintf(zztmp, "/post_reply/%d", id); zztmp[len] = 0;
 
-	mg_printf_data(conn, html_form, zztmp, "[Post a Reply]");
+	mg_printf_data(conn, html_form, zztmp, "postform", "[Post a Reply]");
 		
 	if (r->childThread) {
 		cclong r_childThread = r->childThread;
@@ -731,7 +748,8 @@ void postSomething(mg_connection* conn, const char* uri){
 void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
 	mg_send_header(conn, "charset", "utf-8");
 	mg_printf_data(conn, html_header, site_title, site_title);
-	mg_printf_data(conn, html_form, "/post_thread", "[Start a New Thread]");
+	mg_printf_data(conn, show_hide_button);
+	mg_printf_data(conn, html_form, "/post_thread", "hiding", "[Start a New Thread]");
 
 	if(indexPage)
 		showThreads(conn, 1, threadsPerPage);
@@ -750,7 +768,8 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
 	time(&nn);
 	mg_printf_data(conn, "<small>Last: %.3lfh, ", difftime(nn, g_startuptime) / 3600);
 	mg_printf_data(conn, "Cookie: %s, ", stop_newcookie ? "OFF" : "ON");
-	mg_printf_data(conn, "CD: %ds</small><br/>", cd_time);
+	mg_printf_data(conn, "CD: %ds, ", cd_time);
+	mg_printf_data(conn, "Mem: %ldkb</small><br/>", readMemusage() * 4);
 	//mg_printf_data(conn, "<span class='admin'><a href='/list'>%s</a>%s</span>", ssid, galleryPage ? "<a href='/'>Timeline</a>" : "<a href='/gallery/1'>Gallery</a>");
 	printFooter(conn);
 }
