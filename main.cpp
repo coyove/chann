@@ -54,8 +54,17 @@ void printFooter(mg_connection* conn){
 	mg_printf_data(conn, "</body></html>");
 }
 
+void printHeader(mg_connection* conn){
+	char * header = readString(pDb, "header");
+	if(header){
+		mg_printf_data(conn, html_header, site_title, header);
+		delete [] header;
+	}else
+		mg_printf_data(conn, html_header, site_title, site_title);
+}
+
 void printMsg(mg_connection* conn, const char* msg, ...){
-	mg_printf_data(conn, html_header, site_title, site_title);
+	printHeader(conn);
 	
 	char tmpbuf[512]; //=w=
 	va_list argptr;
@@ -253,7 +262,7 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
 	cclong totalThreads = r->childCount;
 	cclong totalPages = 100;
 
-	char *slogan = readString(pDb, r->content);
+	char *slogan = readString(pDb, "slogan");
 	if(slogan) {
 		mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
 		if(admin_view)
@@ -319,7 +328,7 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 	else
 		totalPages = (cclong)(totalThreads / threadsPerPage) + 1;
 
-	char *slogan = readString(pDb, r->content);
+	char *slogan = readString(pDb, "slogan");
 	if(slogan) {
 		mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
 		if(admin_view)
@@ -408,7 +417,10 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 void showThread(mg_connection* conn, cclong id){
 	clock_t startc = clock();
 
-	if (id == 0) return;
+	if (id <= 0) {
+		printMsg(conn, "The thread's ID is invalid");
+		return;
+	}
 	struct Thread *r = readThread_(pDb, id); // get the root thread
 	cclong c = 0;
 
@@ -483,7 +495,7 @@ void userListThread(mg_connection* conn){
 		struct Thread *r = readThread_(pDb, 0); 
 		struct Thread *t;
 
-		mg_printf_data(conn, html_header, site_title, site_title);
+		printHeader(conn);
 		clock_t startc = clock();
 		for(cclong i = r->childCount; i > 0; i--){
 			t = readThread_(pDb, i);
@@ -604,7 +616,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		return;
 	}
 	if (strstr(var3, "url")){
-		mg_printf_data(conn, html_header, site_title, site_title);
+		printHeader(conn);
 		mg_printf_data(conn, "Image uploaded: <div style='background-color:white; padding: 1em;border: dashed 1px'>"
 			"http://%s:%d/images/%s</div></body></html>", 
 			conn->local_ip, conn->local_port, var4);
@@ -624,25 +636,24 @@ void postSomething(mg_connection* conn, const char* uri){
 	}
 	//admin trying to post a slogan
 	//note that the content of the slogan is represented in HTML format
-	if (strstr(var3, "slogan") && verifyAdmin(conn)){
-		struct Thread* t = readThread_(pDb, 0);
+	// if (strstr(var3, "slogan") && verifyAdmin(conn)){
+	// 	struct Thread* t = readThread_(pDb, 0);
 		
-		writeString(pDb, "slogan", var2, false);
-		strncpy(t->content, "slogan", 16);
+	// 	writeString(pDb, "slogan", var2, false);
+	// 	strncpy(t->content, "slogan", 16);
 		
-		printMsg(conn, "You have updated the slogan");
-		fprintf(log_file, "Slogan updated at %s", nowNow());
+	// 	printMsg(conn, "You have updated the slogan");
+	// 	fprintf(log_file, "Slogan updated at %s", nowNow());
 		
-		writeThread(pDb, 0, t, true);
-		return;
-	}
-	//admin trying to update the footer
-	//note that the content of the footer is represented in HTML format
-	if (strstr(var3, "footer") && verifyAdmin(conn)){	
-		writeString(pDb, "footer", var2, true);
+	// 	writeThread(pDb, 0, t, true);
+	// 	return;
+	// }
+	if (strstr(var3, "mod-") && verifyAdmin(conn)){	
+		string ent = split(string(var3), "-")[1];
+		writeString(pDb, (char*)ent.c_str(), var2, true);
 		
-		printMsg(conn, "You have updated the footer");
-		fprintf(log_file, "Footer updated at %s", nowNow());
+		printMsg(conn, "You have updated the %s", ent.c_str());
+		fprintf(log_file, "[%s] updated at %s", ent.c_str(), nowNow());
 		return;
 	}
 	//image or comment or both
@@ -732,7 +743,7 @@ void postSomething(mg_connection* conn, const char* uri){
 			printMsg(conn, "You can't reply to a locked thread");
 		else{
 			newReply(pDb, id, tmpcontent.c_str(), var1, conn->remote_ip, username, var4, sage);
-			mg_printf_data(conn, html_header, site_title, site_title);
+			printHeader(conn);
 			mg_printf_data(conn, html_redirtothread, id, id, id);
 			printFooter(conn);
 		}
@@ -747,7 +758,7 @@ void postSomething(mg_connection* conn, const char* uri){
 
 void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
 	mg_send_header(conn, "charset", "utf-8");
-	mg_printf_data(conn, html_header, site_title, site_title);
+	printHeader(conn);
 	mg_printf_data(conn, show_hide_button);
 	mg_printf_data(conn, html_form, "/post_thread", "hiding", "[Start a New Thread]");
 
@@ -788,7 +799,7 @@ static void send_reply(struct mg_connection *conn) {
 	}
 	else if (strstr(conn->uri, "/thread/")) {
 		mg_send_header(conn, "charset", "utf-8");
-		mg_printf_data(conn, html_header, site_title, site_title);
+		printHeader(conn);
 
 		cclong id = extractLastNumber(conn);
 		cclong pid = findParent(pDb, id);
@@ -919,7 +930,7 @@ static void send_reply(struct mg_connection *conn) {
 			struct Thread *t;
 			bool ipflag = strstr(conn->uri, "/ip/"), killflag = strstr(conn->uri, "/kill/");
 
-			mg_printf_data(conn, html_header, site_title, site_title);
+			printHeader(conn);
 			clock_t startc = clock();
 
 			for(cclong i = r->childCount; i > 0; i--){

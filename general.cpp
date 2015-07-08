@@ -57,8 +57,8 @@ int resetDatabase(unqlite *pDb){
 
 cclong findParent(unqlite *pDb, cclong startID){
 	struct Thread* b = readThread_(pDb, startID);
-	if (b->state & MAIN_THREAD) return 0;
 	if (!(b->state & NORMAL_DISPLAY)) return -1;
+	if (b->state & MAIN_THREAD) return 0;
 	if (b->parentThread) return b->parentThread;
 
 	while (b->nextThread != startID){
@@ -439,8 +439,9 @@ struct Thread* readThread_(unqlite *pDb, cclong key){
 	struct Thread* zBuf = new Thread();
 
 	rc = unqlite_kv_fetch(pDb, k, 4, zBuf, &nBytes);
-	if (rc != UNQLITE_OK)
-		return 0;
+	//if (rc != UNQLITE_OK)
+	//	return 0;
+	//even the fetch function failed, we return an empty structure
 
 	return zBuf;
 }
