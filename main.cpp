@@ -87,6 +87,7 @@ bool checkIP(mg_connection* conn, bool verbose = false){
 	if(strstr(conn->uri, admin_pass)) return true;
 	if(ipbanlist.find(sip) != ipbanlist.end()) {
 		printMsg(conn, "Your IP is banned");
+		fprintf(log_file, "Banned IP [%s] access at %s", conn->remote_ip, nowNow());
 		return false; //banned
 	}
 
@@ -202,18 +203,17 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	char admin_ctrl[512];
 	if(admin_view){
 		sprintf(admin_ctrl, "<br/><span class='admin'>["
-							"<a href='/list/ip/%s'>%s</a>,<a href='/ban/ip/%s'>&#10006;</a>,"
-							"<a href='http://ip.chinaz.com/?IP=%s'>&#127760;</a>|"
 							"<a href='/sage/%d'>&#128078;</a>,"
 							"<a href='/lock/%d'>&#128274;</a>,"
 							"<a href='/delete/%d'>&#10006;</a>,"
 							"<a href='/rename/%s'>&#10006;IMG</a>|"
+							"<a href='/list/ip/%s'>%s</a>,<a href='/ban/ip/%s'>&#10006;</a>,"
+							"<a href='http://ip.chinaz.com/?IP=%s'>&#127760;</a>|"
 							"<a href='/list/%s'>%s</a>,"
 							"<a href='/ban/%s'>&#10006;</a>"
 							"]</span>",
+							r->threadID, r->threadID, r->threadID, r->imgSrc, 
 							r->email, r->email, r->email, r->email,
-							r->threadID, r->threadID, r->threadID, 
-							r->imgSrc, 
 							r->ssid, r->ssid, r->ssid);
 	}
 	else
@@ -787,9 +787,6 @@ static void send_reply(struct mg_connection *conn) {
 		returnPage(conn, false, true);
 	}
 	else if (strstr(conn->uri, "/thread/")) {
-		mg_send_header(conn, "charset", "utf-8");
-		printHeader(conn);
-
 		cclong id = extractLastNumber(conn);
 		cclong pid = findParent(pDb, id);
 
@@ -798,14 +795,18 @@ static void send_reply(struct mg_connection *conn) {
 			return ;
 		}
 		else{
+			mg_send_header(conn, "charset", "utf-8");
+			printHeader(conn);
+
 			if (pid)
 				mg_printf_data(conn, "<a href='/thread/%d'>&lt;&lt; No.%d</a><hr>", pid, pid);
 			else
 				mg_printf_data(conn, "<a href='/'>&lt;&lt; Homepage</a><hr>");
 
 			showThread(conn, id);
+
+			printFooter(conn);
 		}
-		printFooter(conn);
 	}
 	else if (strstr(conn->uri, "/api/")) {
 		cclong id = extractLastNumber(conn);
