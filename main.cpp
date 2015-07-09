@@ -634,20 +634,6 @@ void postSomething(mg_connection* conn, const char* uri){
 		fprintf(log_file, "Admin edited thread no.%d at %s", t->threadID, nowNow());
 		return;
 	}
-	//admin trying to post a slogan
-	//note that the content of the slogan is represented in HTML format
-	// if (strstr(var3, "slogan") && verifyAdmin(conn)){
-	// 	struct Thread* t = readThread_(pDb, 0);
-		
-	// 	writeString(pDb, "slogan", var2, false);
-	// 	strncpy(t->content, "slogan", 16);
-		
-	// 	printMsg(conn, "You have updated the slogan");
-	// 	fprintf(log_file, "Slogan updated at %s", nowNow());
-		
-	// 	writeThread(pDb, 0, t, true);
-	// 	return;
-	// }
 	if (strstr(var3, "mod-") && verifyAdmin(conn)){	
 		string ent = split(string(var3), "-")[1];
 		writeString(pDb, (char*)ent.c_str(), var2, true);
@@ -722,17 +708,20 @@ void postSomething(mg_connection* conn, const char* uri){
 	for (auto i = 0; i < imageDetector.size(); ++i){
 		if (startsWith(imageDetector[i], "http"))
 			imageDetector[i] = "<a href='" + imageDetector[i] + "'>" + imageDetector[i] + "</a>";
-
+		bool refFlag = false;
 		if (startsWith(imageDetector[i], "&gt;&gt;No.")){
 			vector<string> gotoLink = split(imageDetector[i], string("."));
-			if (gotoLink.size() == 2)
-				imageDetector[i] = "<a href='/thread/" + gotoLink[1] + "'>" + imageDetector[i] + "</a>";
+			if (gotoLink.size() == 2){
+				imageDetector[i] = "<div class='div-thread-" + gotoLink[1] + "'><a href='javascript:ajst(" + gotoLink[1] + ")'>" + imageDetector[i] + "</a></div>";
+				refFlag = true;
+			}
 		}
-
 		if (startsWith(imageDetector[i], "&gt;"))
-			imageDetector[i] = "<font color='#789922'>" + imageDetector[i] + "</font>";
-		
-		tmpcontent += (imageDetector[i] + "<br/>");
+					imageDetector[i] = "<font color='#789922'>" + imageDetector[i] + "</font>";
+		if(refFlag)
+			tmpcontent += imageDetector[i];
+		else
+			tmpcontent += (imageDetector[i] + "<br/>");
 	}
 
 	if (strstr(conn->uri, "/post_reply/")) {
@@ -817,6 +806,20 @@ static void send_reply(struct mg_connection *conn) {
 			showThread(conn, id);
 		}
 		printFooter(conn);
+	}
+	else if (strstr(conn->uri, "/api/")) {
+		cclong id = extractLastNumber(conn);
+		struct Thread *r = readThread_(pDb, id); // get the root thread
+		bool admin_view = verifyAdmin(conn);
+
+		if (!(r->state & NORMAL_DISPLAY)){
+			printMsg(conn, "This thread has been deleted");
+			return;
+		}
+		else
+			sendThread(conn, r, false, false, false, false, admin_view);
+
+		delete r;
 	}
 	else if (strstr(conn->uri, "/post_reply/")) {
 		postSomething(conn, conn->uri);
