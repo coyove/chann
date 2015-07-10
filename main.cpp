@@ -649,7 +649,11 @@ void postSomething(mg_connection* conn, const char* uri){
 	}
 	//verify the cookie
 	char ssid[128], username[10];
-	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
+	//123456789|12345678901234567890123456789012
+	if (strstr(var3, "|") && strlen(var3) == 42)
+		strcpy(ssid, var3);
+	else
+		mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
 
 	if (strcmp(ssid, "") == 0){
 		//user doesn't have a cookie, we give one
@@ -762,15 +766,15 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
 			showThreads(conn, i, j);
 	}
 
-	char ssid[10];
-	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 9); ssid[9] = 0;
+	char ssid[48];
+	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 48);
 	time_t nn;
 	time(&nn);
 	mg_printf_data(conn, "<small>Last: %.3lfh, ", difftime(nn, g_startuptime) / 3600);
 	mg_printf_data(conn, "Cookie: %s, ", stop_newcookie ? "OFF" : "ON");
 	mg_printf_data(conn, "CD: %ds, ", cd_time);
-	mg_printf_data(conn, "Mem: %ldkb</small><br/>", readMemusage() * 4);
-	//mg_printf_data(conn, "<span class='admin'><a href='/list'>%s</a>%s</span>", ssid, galleryPage ? "<a href='/'>Timeline</a>" : "<a href='/gallery/1'>Gallery</a>");
+	mg_printf_data(conn, "Mem: %ldkb<br/>", readMemusage() * 4);
+	mg_printf_data(conn, "<span class='admin'><a href='#' onclick='$(\"#opt\").val(\"%s\")'>%s</a></span></small>", ssid, ssid);
 	printFooter(conn);
 }
 
