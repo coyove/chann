@@ -11,8 +11,10 @@ extern "C" {
 #include <string>
 #include <cstring>
 
+void setCookie(mg_connection *conn, const char *ssid);
 char* generateSSID(const char *user_name);
-int renewCookie(mg_connection* conn, const char* username);
+char* renewCookie(const char* username);
 char* giveNewCookie(mg_connection* conn);
 void destoryCookie(mg_connection *conn);
 int renewCookie(mg_connection* conn, const char* username);
+char* verifyCookie(mg_connection* conn);

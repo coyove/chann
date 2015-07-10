@@ -1,12 +1,13 @@
 
 #include "cookie.h"
+#include "helper.h"
 
 extern char* md5_salt;
 extern bool stop_newcookie;
 extern unqlite *pDb;
 extern FILE* log_file;
 
-void setCookie(mg_connection *conn, char *ssid){
+void setCookie(mg_connection *conn, const char *ssid){
 	char expire[100];
 	time_t t = time(NULL) + 60 * 60 * 24 * 30;
 	strftime(expire, sizeof(expire), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
@@ -26,7 +27,7 @@ char* generateSSID(const char *user_name) {
 	return hash;
 }
 
-int renewCookie(mg_connection* conn, const char* username){
+char* renewCookie(const char* username){
 	/*time_t rawtime;
 	time(&rawtime);
 	char timebuf[16];
@@ -34,14 +35,12 @@ int renewCookie(mg_connection* conn, const char* username){
 
 	char newssid[33];
 	strcpy(newssid, generateSSID(username));
-	char finalssid[64];
+	char *finalssid = new char[64];
 
 	int len = sprintf(finalssid, "%s|%s", username, newssid);
 	finalssid[len] = 0;
 
-	setCookie(conn, finalssid);
-
-	return 1;
+	return finalssid;
 }
 
 void destoryCookie(mg_connection *conn){
@@ -70,9 +69,26 @@ char* giveNewCookie(mg_connection* conn){
 
 	int len = sprintf(finalssid, "%s|%s", username, newssid);
 
-	setCookie(conn, finalssid);
+	//setCookie(conn, finalssid);
 
 	fprintf(log_file, "New cookie delivered: [%s] at %s", finalssid, nowNow());
 
 	return username;
+}
+
+char* verifyCookie(mg_connection* conn){
+	char ssid[128];
+	char *username = new char[10];
+	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
+	vector<string> zztmp = split(string(ssid), string("|"));
+	if (zztmp.size() != 2) return NULL;
+
+	strncpy(username, zztmp[0].c_str(), 10);
+	char testssid[33];
+	strcpy(testssid, generateSSID(username));
+
+	if (strcmp(testssid, zztmp[1].c_str()) == 0)
+		return username;
+	else
+		return NULL;
 }

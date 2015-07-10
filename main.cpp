@@ -661,8 +661,10 @@ void postSomething(mg_connection* conn, const char* uri){
 			printMsg(conn, "The board has stopped delivering new cookies");
 			return;
 		}
-		else
+		else{
 			strcpy(username, giveNewCookie(conn));
+			strcpy(ssid, renewCookie(username));
+		}
 	}
 	else{
 		vector<string> tmp = split(string(ssid), string("|"));
@@ -671,12 +673,12 @@ void postSomething(mg_connection* conn, const char* uri){
 				printMsg(conn, "The board has stopped delivering new cookies");
 				return;
 			}
-			else
+			else{
 				strcpy(username, giveNewCookie(conn));
+				strcpy(ssid, renewCookie(username));
+			}
 		}else{
 			strncpy(username, tmp[0].c_str(), 10);
-
-			//auto iter = find(banlist.begin(), banlist.end(), username);
 		
 			if (banlist.find(tmp[0]) != banlist.end()){
 				//this id is banned, so we destory it
@@ -688,12 +690,12 @@ void postSomething(mg_connection* conn, const char* uri){
 
 			char *testssid = generateSSID(username);
 			if (strcmp(testssid, tmp[1].c_str()) != 0){
-				giveNewCookie(conn);
+				strcpy(username, giveNewCookie(conn));
+				strcpy(ssid, renewCookie(username));
 				printMsg(conn, "Your cookie is broken");
 				return;
 			}
 		}
-		renewCookie(conn, username);
 	}
 
 	if (strcmp(var3, admin_pass) == 0) strcpy(username, "Admin");
@@ -736,16 +738,16 @@ void postSomething(mg_connection* conn, const char* uri){
 			printMsg(conn, "You can't reply to a locked thread");
 		else{
 			newReply(pDb, id, tmpcontent.c_str(), var1, conn->remote_ip, username, var4, sage);
-			printHeader(conn);
-			mg_printf_data(conn, html_redirtothread, id, id, id);
-			printFooter(conn);
+			
+			mg_printf(conn, "HTTP/1.1 301 Moved Permanently\r\nLocation: /success/%s/%d\r\n\r\n", ssid, id);
 		}
 
 		if(t) delete t;
 	}
 	else{
 		newThread(pDb, tmpcontent.c_str(), var1, conn->remote_ip, username, var4, sage);
-		printMsg(conn, "Successfully start a new thread");
+		//printMsg(conn, "Successfully start a new thread");
+		mg_printf(conn, "HTTP/1.1 301 Moved Permanently\r\nLocation: /success/%s/0\r\n\r\n", ssid);
 	}
 }
 
@@ -781,14 +783,34 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
 static void send_reply(struct mg_connection *conn) {
 	//total_hit++;
 
-	if (strcmp(conn->uri, "/post_thread") == 0) {
+	if (strcmp(conn->uri, "/post_thread") == 0)
 		postSomething(conn, conn->uri);
-	}
-	else if (strstr(conn->uri, "/page/")) {
+	else if (strstr(conn->uri, "/post_reply/"))
+		postSomething(conn, conn->uri);
+	else if (strstr(conn->uri, "/page/"))
 		returnPage(conn, false);
-	}
-	else if (strstr(conn->uri, "/gallery/")) {
+	else if (strstr(conn->uri, "/gallery/"))
 		returnPage(conn, false, true);
+	else if (strstr(conn->uri, "/success/")) {
+		string url(conn->uri);
+		vector<string> tmp = split(url, "/");
+
+		if(tmp.size() != 3){
+			printMsg(conn, "Error");
+			return;
+		}
+		cclong id  = atol(tmp[tmp.size() - 1].c_str());
+		//renewCookie(conn, username);
+		setCookie(conn, tmp[tmp.size() - 2].c_str());
+		mg_send_header(conn, "charset", "utf-8");
+		
+		if(id == 0)
+			printMsg(conn, "Successfully start a new thread");
+		else{
+			printHeader(conn);
+			mg_printf_data(conn, html_redirtothread, id, id, id);
+			printFooter(conn);
+		}
 	}
 	else if (strstr(conn->uri, "/thread/")) {
 		cclong id = extractLastNumber(conn);
@@ -818,16 +840,14 @@ static void send_reply(struct mg_connection *conn) {
 		bool admin_view = verifyAdmin(conn);
 
 		if (!(r->state & NORMAL_DISPLAY)){
-			printMsg(conn, "This thread has been deleted");
+			//printMsg(conn, "This thread has been deleted");
+			mg_printf_data(conn, "<Invalid Thread>");
 			return;
 		}
 		else
 			sendThread(conn, r, false, false, false, false, admin_view);
 
 		delete r;
-	}
-	else if (strstr(conn->uri, "/post_reply/")) {
-		postSomething(conn, conn->uri);
 	}
 	else if (strstr(conn->uri, "/spell/")) {
 		if(!checkIP(conn, true)) return;
@@ -847,7 +867,6 @@ static void send_reply(struct mg_connection *conn) {
 			printMsg(conn, "Your don't have the permission");
 			checkIP(conn, true);
 		}
-
 	}
 	else if (strstr(conn->uri, "/state/")){
 		if(!checkIP(conn, true)) return;
@@ -877,8 +896,7 @@ static void send_reply(struct mg_connection *conn) {
 		else{
 			printMsg(conn, "Your don't have the permission");
 			checkIP(conn, true);
-		}
-		
+		}	
 	}
 	else if (strstr(conn->uri, "/sage/")){
 		if (verifyAdmin(conn))
@@ -925,7 +943,6 @@ static void send_reply(struct mg_connection *conn) {
 			printMsg(conn, "Your don't have the permission");
 			checkIP(conn, true);
 		}
-
 	}
 	else if (strstr(conn->uri, "/list")){
 		string url(conn->uri);
@@ -972,7 +989,6 @@ static void send_reply(struct mg_connection *conn) {
 			userListThread(conn);
 			checkIP(conn, true);
 		}
-
 	}
 	else if (strstr(conn->uri, "/rename/")){
 		string url(conn->uri);
