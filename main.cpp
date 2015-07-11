@@ -648,7 +648,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		return;
 	}
 	//verify the cookie
-	char ssid[128], username[10];
+	char ssid[64], username[10];
 	//123456789|12345678901234567890123456789012
 	if (strstr(var3, "|") && strlen(var3) == 42)
 		strcpy(ssid, var3);
@@ -669,14 +669,8 @@ void postSomething(mg_connection* conn, const char* uri){
 	else{
 		vector<string> tmp = split(string(ssid), string("|"));
 		if (tmp.size() != 2){
-			if (stop_newcookie){
-				printMsg(conn, "The board has stopped delivering new cookies");
-				return;
-			}
-			else{
-				strcpy(username, giveNewCookie(conn));
-				strcpy(ssid, renewCookie(username));
-			}
+			printMsg(conn, "Your cookie is invalid");
+			return;
 		}else{
 			strncpy(username, tmp[0].c_str(), 10);
 		
@@ -690,11 +684,11 @@ void postSomething(mg_connection* conn, const char* uri){
 
 			char *testssid = generateSSID(username);
 			if (strcmp(testssid, tmp[1].c_str()) != 0){
-				strcpy(username, giveNewCookie(conn));
-				strcpy(ssid, renewCookie(username));
 				printMsg(conn, "Your cookie is broken");
+				delete [] testssid;
 				return;
 			}
+			delete [] testssid;
 		}
 	}
 
