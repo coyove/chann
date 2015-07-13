@@ -153,10 +153,11 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	char timetmp[64];
 	strftime(timetmp, 64, "%Y-%m-%d %X", timeinfo);
 
-	char crl[128], sage[128], locked[128], deleted[64], display_ssid[64], width1[128];
-	sprintf(crl, show_reply ? "[<a href=\"/thread/%d\"><b>Reply</b></a>]" : "", r->threadID); 
+	char crl[128], sage[128], locked[128], deleted[64], display_ssid[64], width1[64], width2[32];
+	sprintf(crl, show_reply ? "[<a href=\"/thread/%d\">Reply</a>]" : "", r->threadID); 
 	//a reply thread has an horizontal offset(20px) at left
-	strcpy(width1, reply ? "class='thread header' style='margin-left:20px'" : "class='thread' ");
+	strcpy(width1, reply ? "<div class='holder'>&gt;&gt;</div>" : "");
+	strcpy(width2, reply ? "class='thread header' " : "class='thread' ");
 	//display the sage flag
 	strcpy(sage, (r->state & SAGE_THREAD && !reply) ? "<font color='red'><b>&#128078;&nbsp;SAGE</b></font><br/>" : "");
 	//display the lock flag
@@ -178,9 +179,14 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	}else
 		strcpy(reply_count, "");
 
+	char ref_or_link[128];
+	if(show_reply)
+		sprintf(ref_or_link, "<a href='javascript:qref(%d)'>No.%d</a>", r->threadID, r->threadID);
+	else
+		sprintf(ref_or_link, "<a href='/thread/%d'>No.%d</a>", r->threadID, r->threadID);
+
 	char display_image[128];
-	//printf("[%s]\n", r->imgSrc);
-	if (strlen(r->imgSrc) != 15)// == 0 || strcmp(r->imgSrc, "x") == 0)
+	if (strlen(r->imgSrc) < 4)// == 0 || strcmp(r->imgSrc, "x") == 0)
 		strcpy(display_image, "");
 	else{
 		if(cut_image){
@@ -231,18 +237,18 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	}
 
 	len = sprintf(tmp,
-		"<div %s>"
+		"<div>%s<div %s>"
 		"%s"
-		"<a href='/thread/%d'>No.%d</a>&nbsp;<font color='#228811'><b>%s</b></font> %s ID:<span class='uid'>%s</span> %s %s"
+		"%s&nbsp;<font color='#228811'><b>%s</b></font> %s ID:<span class='uid'>%s</span> %s %s"
 		"<div class='quote'>%s</div>"
 		"%s"
 		"%s"
 		"%s"
 		"%s"
-		"</div>",
-		width1, 
+		"</div></div>",
+		width1, width2,
 		display_image, 
-		r->threadID, r->threadID, r->author, timetmp, display_ssid, crl, admin_ctrl,
+		ref_or_link, r->author, timetmp, display_ssid, crl, admin_ctrl,
 		cut_cclong ? c_content : content, 
 		sage, 
 		locked, 
@@ -528,7 +534,7 @@ void postSomething(mg_connection* conn, const char* uri){
 
 	//first check the ip
 	if(!checkIP(conn)) return;
-
+	bool admin_ctrl = verifyAdmin(conn);
 	//get the post form data
 	//var1: the subject of the thread
 	//var2: the comment
@@ -624,7 +630,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		return;
 	}
 	//admin trying to update a thread/reply
-	if (strstr(var3, "update") && verifyAdmin(conn)){
+	if (strstr(var3, "update") && admin_ctrl){
 		cclong id = extractLastNumber(conn);
 		struct Thread * t = readThread_(pDb, id); //what admin replies to is which he wants to update
 		//note the server doesn't filter the special chars such as "<" and ">"
@@ -634,7 +640,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		fprintf(log_file, "Admin edited thread no.%d at %s", t->threadID, nowNow());
 		return;
 	}
-	if (strstr(var3, "mod-") && verifyAdmin(conn)){	
+	if (strstr(var3, "mod-") && admin_ctrl){	
 		string ent = split(string(var3), "-")[1];
 		writeString(pDb, (char*)ent.c_str(), var2, true);
 		
@@ -642,11 +648,18 @@ void postSomething(mg_connection* conn, const char* uri){
 		fprintf(log_file, "[%s] updated at %s", ent.c_str(), nowNow());
 		return;
 	}
-	//image or comment or both
-	if (strcmp(var2, "") == 0 && !fileAttached) {
-		printMsg(conn, "Please enter something");
-		return;
+	char ipath[32]; FILE *fp; struct stat st;
+	sprintf(ipath, "images/%s", var3);
+	if (stat(ipath, &st) == 0 && (fp = fopen(ipath, "rb")) != NULL && strcmp(var3, "") != 0)
+		strncpy(var4, var3, 16);
+	else{
+		//image or comment or both
+		if (strcmp(var2, "") == 0 && !fileAttached) {
+			printMsg(conn, "Please enter something");
+			return;
+		}
 	}
+	//fprintf(log_file, "[%s]", var4);
 	//verify the cookie
 	char ssid[64], username[10];
 	//123456789|12345678901234567890123456789012
@@ -693,6 +706,7 @@ void postSomething(mg_connection* conn, const char* uri){
 	}
 
 	if (strcmp(var3, admin_pass) == 0) strcpy(username, "Admin");
+	if (admin_ctrl) strcpy(username, "Admin");
 
 	//replace some important things
 	string tmpcontent(var2);	cleanString(tmpcontent);
@@ -770,7 +784,7 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
 	mg_printf_data(conn, "Cookie: %s, ", stop_newcookie ? "OFF" : "ON");
 	mg_printf_data(conn, "CD: %ds, ", cd_time);
 	mg_printf_data(conn, "Mem: %ldkb<br/>", readMemusage() * 4);
-	mg_printf_data(conn, "<span class='admin'><a href='#' onclick='$(\"#opt\").val(\"%s\")'>%s</a></span></small>", ssid, ssid);
+	mg_printf_data(conn, "<span class='admin'><a href='#' onclick='document.getElementById(\"opt\").value=\"%s\"'>%s</a></span></small>", ssid, ssid);
 	printFooter(conn);
 }
 
@@ -939,6 +953,8 @@ static void send_reply(struct mg_connection *conn) {
 		}
 	}
 	else if (strstr(conn->uri, "/list")){
+		if(!checkIP(conn, true)) return;
+
 		string url(conn->uri);
 		vector<string> tmp = split(url, "/");
 		string id = tmp[tmp.size() - 1];
@@ -981,7 +997,7 @@ static void send_reply(struct mg_connection *conn) {
 		else{
 			//printMsg(conn, "Your don't have the permission");
 			userListThread(conn);
-			checkIP(conn, true);
+			//checkIP(conn, true);
 		}
 	}
 	else if (strstr(conn->uri, "/rename/")){
