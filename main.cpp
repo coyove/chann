@@ -141,7 +141,8 @@ void sendThread(mg_connection* conn, struct Thread* r,
 				bool show_reply = true, 
 				bool cut_cclong = false, 
 				bool cut_image = false,
-				bool admin_view = false){
+				bool admin_view = false,
+				char* iid = ""){
 	if (!(r->state & NORMAL_DISPLAY) && !admin_view) return;
 
 	struct tm * timeinfo;
@@ -164,6 +165,8 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	strcpy(locked, r->state & LOCKED_THREAD ? "<font color='red'><b>&#128274;&nbsp;Locked</b></font><br/>" : "");
 	//display the red name
 	strcpy(display_ssid, (strcmp(r->ssid, "Admin") == 0) ? "<b><font color='red'>Admin</font></b>" : r->ssid);
+	if(strcmp(r->ssid, iid) == 0) strcpy(display_ssid, "<font color='red'>Poster</font>");
+	//display the deleted flag
 	strcpy(deleted, !(r->state & NORMAL_DISPLAY) ? "<font color='red'><b>&#10006;&nbsp;Deleted</b></font><br/>" : "");
 
 	char reply_count[128];
@@ -239,7 +242,8 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	len = sprintf(tmp,
 		"<div>%s<div %s>"
 		"%s"
-		"%s&nbsp;<font color='#228811'><b>%s</b></font> %s ID:<span class='uid'>%s</span> %s %s"
+		"%s&nbsp;<font color='#228811'><b>%s</b></font>&nbsp;"
+		"<span class='tms hiding'>%d</span><span class='tmsc'>%s</span> ID:<span class='uid'>%s</span> %s %s"
 		"<div class='quote'>%s</div>"
 		"%s"
 		"%s"
@@ -248,7 +252,8 @@ void sendThread(mg_connection* conn, struct Thread* r,
 		"</div></div>",
 		width1, width2,
 		display_image, 
-		ref_or_link, r->author, timetmp, display_ssid, crl, admin_ctrl,
+		ref_or_link, r->author, 
+		r->date, timetmp, display_ssid, crl, admin_ctrl,
 		cut_cclong ? c_content : content, 
 		sage, 
 		locked, 
@@ -353,6 +358,8 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 		if (c >= startID && c <= endID){
 			mg_printf_data(conn, "<hr>");
 			sendThread(conn, r, false, true, true, false, admin_view);
+			char *iid = new char[10];
+			strcpy(iid, r->ssid);
 
 			struct Thread *oldr = r;
 
@@ -380,13 +387,14 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 				}
 
 				for (int i = vt.size() - 1; i >= 0; i--){
-					sendThread(conn, vt[i], true, false, false, false, admin_view);
+					sendThread(conn, vt[i], true, false, false, false, admin_view, iid);
 					delete vt[i];
 				}
 
 			}
 
 			r = oldr;
+			delete [] iid;
 		}
 		
 		if (c == endID + 1) break;
@@ -435,6 +443,9 @@ void showThread(mg_connection* conn, cclong id){
 	sendThread(conn, r, false, false, false, false, admin_view);
 	mg_printf_data(conn, "<hr>");
 
+	char iid[10];
+	strcpy(iid, r->ssid);
+
 	char zztmp[512];
 	int len = sprintf(zztmp, "/post_reply/%d", id); zztmp[len] = 0;
 
@@ -448,7 +459,7 @@ void showThread(mg_connection* conn, cclong id){
 		cclong rid = r->threadID; //the ID
 		bool too_many_replies = (r->childCount > 20);
 
-		sendThread(conn, r , true, true, false, false, admin_view);
+		sendThread(conn, r , true, true, false, false, admin_view, iid);
 
 		int di = 1;
 		while (r->nextThread != rid){
@@ -458,7 +469,7 @@ void showThread(mg_connection* conn, cclong id){
 			r = readThread_(pDb, r_nextThread);
 			di++;
 
-			sendThread(conn, r, true, true, false, too_many_replies && (di > 20), admin_view);
+			sendThread(conn, r, true, true, false, too_many_replies && (di > 20), admin_view, iid);
 		}
 
 		if(r) delete r;
@@ -497,11 +508,14 @@ void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
 void userListThread(mg_connection* conn){
 	char *username = verifyCookie(conn);
 
+	printHeader(conn);
+	mg_printf_data(conn, "<button class='btn' onclick='cvtm(true);'>&#128198;&nbsp;Timestamp Display</button>"
+			"<small>Example:<span class='tms hiding'>0</span><span class='tmsc'></span></small><hr>");
+
 	if (username){
 		struct Thread *r = readThread_(pDb, 0); 
 		struct Thread *t;
 
-		printHeader(conn);
 		clock_t startc = clock();
 		for(cclong i = r->childCount; i > 0; i--){
 			t = readThread_(pDb, i);
@@ -517,8 +531,9 @@ void userListThread(mg_connection* conn){
 		printFooter(conn);
 
 		if(r) delete r;
-	}else
-		printMsg(conn, "Your cookie is invalid");
+	}else{
+		printFooter(conn);
+	}
 
 	delete [] username;
 }
@@ -871,6 +886,18 @@ static void send_reply(struct mg_connection *conn) {
 			}
 			else
 				printMsg(conn, "Can't set admin's cookie to null");
+		}else{
+			printMsg(conn, "Your don't have the permission");
+			checkIP(conn, true);
+		}
+	}
+	else if (strstr(conn->uri, "/abdicate/")) {
+		if(!checkIP(conn, true)) return;
+
+		if(strstr(conn->uri, admin_pass)){
+			strcpy(adminCookie, admin_pass);
+			printMsg(conn, "Admin has abdicated");
+			fprintf(log_file, "Admin has abdicated at %s", nowNow());
 		}else{
 			printMsg(conn, "Your don't have the permission");
 			checkIP(conn, true);
