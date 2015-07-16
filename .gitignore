@@ -32,6 +32,8 @@
 *.sdf
 *.pdb
 *.opensdf
+*.psd
+*.png
 Debug/
 Release/
 images/

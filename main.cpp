@@ -72,7 +72,7 @@ void printMsg(mg_connection* conn, const char* msg, ...){
 	vsprintf(tmpbuf, msg, argptr);
 	va_end(argptr);
 
-	mg_printf_data(conn, html_error, "/ ", tmpbuf, "/ ", "homepage");
+	mg_printf_data(conn, html_error, "/ ", tmpbuf, "/ ", STRING_HOMEPAGE);
 	printFooter(conn);
 }
 
@@ -86,7 +86,7 @@ bool checkIP(mg_connection* conn, bool verbose = false){
 	
 	if(strstr(conn->uri, admin_pass)) return true;
 	if(ipbanlist.find(sip) != ipbanlist.end()) {
-		printMsg(conn, "Your IP is banned");
+		printMsg(conn, STRING_YOUR_IP_IS_BANNED);
 		fprintf(log_file, "Banned IP [%s] access at %s", conn->remote_ip, nowNow());
 		return false; //banned
 	}
@@ -96,7 +96,7 @@ bool checkIP(mg_connection* conn, bool verbose = false){
 	if(strcmp(ssid, adminCookie) == 0) return true;
 
 	if( abs(lasttime - rawtime) < cd_time && lasttime != 0){
-		printMsg(conn, "Cooldown time [%s], please wait", conn->remote_ip);
+		printMsg(conn, STRING_COOLDOWN_TIME, conn->remote_ip);
 		if(verbose)
 			fprintf(log_file, "Rapid access [%s] at %s", conn->remote_ip, nowNow());
 		return false;
@@ -155,30 +155,32 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	strftime(timetmp, 64, "%Y-%m-%d %X", timeinfo);
 
 	char crl[128], sage[128], locked[128], deleted[64], display_ssid[64], width1[64], width2[32];
-	sprintf(crl, show_reply ? "[<a href=\"/thread/%d\">Reply</a>]" : "", r->threadID); 
+	sprintf(crl, show_reply ? "[<a href=\"/thread/%d\">"STRING_REPLY"</a>]" : "", r->threadID); 
 	//a reply thread has an horizontal offset(20px) at left
 	strcpy(width1, reply ? "<div class='holder'>&gt;&gt;</div>" : "");
 	strcpy(width2, reply ? "class='thread header' " : "class='thread' ");
 	//display the sage flag
-	strcpy(sage, (r->state & SAGE_THREAD && !reply) ? "<font color='red'><b>&#128078;&nbsp;SAGE</b></font><br/>" : "");
+	strcpy(sage, (r->state & SAGE_THREAD && !reply) ? "<font color='red'><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></font><br/>" : "");
 	//display the lock flag
-	strcpy(locked, r->state & LOCKED_THREAD ? "<font color='red'><b>&#128274;&nbsp;Locked</b></font><br/>" : "");
+	strcpy(locked, r->state & LOCKED_THREAD ? "<font color='red'><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></font><br/>" : "");
 	//display the red name
-	strcpy(display_ssid, (strcmp(r->ssid, "Admin") == 0) ? "<b><font color='red'>Admin</font></b>" : r->ssid);
-	if(strcmp(r->ssid, iid) == 0) strcpy(display_ssid, "<font color='red'>Poster</font>");
+	strcpy(display_ssid, (strcmp(r->ssid, "Admin") == 0) ? "<font color='red'>"STRING_ADMIN"</font>" : r->ssid);
+	if(strcmp(r->ssid, iid) == 0) strcat(display_ssid, "<pox>"STRING_POSTER"</pox>");
 	//display the deleted flag
 	strcpy(deleted, !(r->state & NORMAL_DISPLAY) ? "<font color='red'><b>&#10006;&nbsp;Deleted</b></font><br/>" : "");
 
-	char reply_count[128];
+	char reply_count[150];
 	if(r->childThread){
 		struct Thread* c = readThread_(pDb, r->childThread);
-		if(c->childCount > 5)
+		if(c->childCount > 5 && show_reply && !reply)
 			sprintf(reply_count, 
-				"<font color='darkcyan'>&#128172;&nbsp;<i>%d replies and %d omitted...</i></font><br/>", 
-				c->childCount, c->childCount - 5); 
-		else
-			sprintf(reply_count, "<font color='darkcyan'>&#128172;&nbsp;<i>%d repl%s in total</i></font><br/>", 
-				c->childCount, c->childCount == 1 ? "y" : "ies"); 
+				"<font color='darkcyan'>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES_HIDE"</i></font><br/>", 
+				c->childCount - 5, crl); 
+		else{
+			sprintf(reply_count, 
+				"<font color='darkcyan'>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES"</i></font><br/>", 
+				c->childCount); 
+		}
 	}else
 		strcpy(reply_count, "");
 
@@ -197,7 +199,7 @@ void sendThread(mg_connection* conn, struct Thread* r,
 			string filename(r->imgSrc);
 			stat(("images/" + filename).c_str(), &st);
 
-			sprintf(display_image, "<div class='img'><a href='/images/%s'>[View Image (%d kb)]</a></div>", 
+			sprintf(display_image, "<div class='img'><a href='/images/%s'>["STRING_VIEW_IMAGE" (%d kb)]</a></div>", 
 				r->imgSrc, st.st_size / 1024);
 
 		}
@@ -242,7 +244,7 @@ void sendThread(mg_connection* conn, struct Thread* r,
 	len = sprintf(tmp,
 		"<div>%s<div %s>"
 		"%s"
-		"%s&nbsp;<font color='#228811'><b>%s</b></font>&nbsp;"
+		"%s&nbsp;<font color='#228811'>%s</font>&nbsp;"
 		"<span class='tms hiding'>%d</span><span class='tmsc'>%s</span> ID:<span class='uid'>%s</span> %s %s"
 		"<div class='quote'>%s</div>"
 		"%s"
@@ -315,8 +317,8 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
 			mg_send_data(conn, tmp, len);
 		}
 	}
-	mg_printf_data(conn, "<a class='pager' href=\"/gallery/%d\">Next</a>", ++current_page);
-	mg_printf_data(conn, "|<a class='pager' href='/'>&#128193;&nbsp;Timeline</a>");
+	mg_printf_data(conn, "<a class='pager' href=\"/gallery/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
+	mg_printf_data(conn, "|<a class='pager' href='/'>&#128193;&nbsp;"STRING_TIMELINE_PAGE"</a>");
 	mg_printf_data(conn, "<br/><br/>");
 	
 	clock_t endc = clock();
@@ -420,8 +422,8 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 			mg_send_data(conn, tmp, len);
 		}
 	}
-	mg_printf_data(conn, "<a class='pager' href=\"/page/%d\">Next</a>", ++current_page);
-	mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128193;&nbsp;Gallery</a>");
+	mg_printf_data(conn, "<a class='pager' href=\"/page/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
+	mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128193;&nbsp;"STRING_GALLERY_PAGE"</a>");
 	mg_printf_data(conn, "<br/><br/>");
 	
 	clock_t endc = clock();
@@ -432,7 +434,7 @@ void showThread(mg_connection* conn, cclong id){
 	clock_t startc = clock();
 
 	if (id <= 0) {
-		printMsg(conn, "The thread's ID is invalid");
+		printMsg(conn, STRING_INVALID_ID);
 		return;
 	}
 	struct Thread *r = readThread_(pDb, id); // get the root thread
@@ -449,7 +451,7 @@ void showThread(mg_connection* conn, cclong id){
 	char zztmp[512];
 	int len = sprintf(zztmp, "/post_reply/%d", id); zztmp[len] = 0;
 
-	mg_printf_data(conn, html_form, zztmp, "postform", "[Post a Reply]");
+	mg_printf_data(conn, html_form, zztmp, "postform", STRING_REPLY_TO_THREAD);
 		
 	if (r->childThread) {
 		cclong r_childThread = r->childThread;
@@ -490,26 +492,26 @@ void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
 
 		if (strcmp(t->ssid, username) == 0 || admin){
 			deleteThread(pDb, tid);
-			printMsg(conn, "You have deleted thread No.%d", tid);
+			printMsg(conn, STRING_DELETE_SUCCESS, tid);
 			fprintf(log_file, "Thread Deleted: [%d] at %s", tid, nowNow());
 		}
 		else{
-			printMsg(conn, "Your cookie doesn't match the thread");
+			printMsg(conn, STRING_NO_PERMISSION);
 			fprintf(log_file, "Trying to Delete Thread: [%d] at %s", tid, nowNow());
 		}
 
 		if(t) delete t;
 	}else
-		printMsg(conn, "Your cookie is invalid");
+		printMsg(conn, STRING_NO_PERMISSION);
 
 	delete [] username;
 }
 
-void userListThread(mg_connection* conn){
+void userListThread(mg_connection* conn, bool admin_view = false){
 	char *username = verifyCookie(conn);
 
 	printHeader(conn);
-	mg_printf_data(conn, "<button class='btn' onclick='cvtm(true);'>&#128198;&nbsp;Timestamp Display</button>"
+	mg_printf_data(conn, "<button class='btn' onclick='cvtm(true);'>&#128198;&nbsp;"STRING_TIMESTAMP_DISPLAY"</button>"
 			"<small>Example:<span class='tms hiding'>0</span><span class='tmsc'></span></small><hr>");
 
 	if (username){
@@ -519,9 +521,9 @@ void userListThread(mg_connection* conn){
 		clock_t startc = clock();
 		for(cclong i = r->childCount; i > 0; i--){
 			t = readThread_(pDb, i);
-			if(r->childCount - i > 500) break; // only search the most recent 500 threads/replies
+			if(r->childCount - i > 500 && !admin_view) break; // only search the most recent 500 threads/replies
 
-			if(strcmp(username, t->ssid) == 0)
+			if(strcmp(username, t->ssid) == 0 || admin_view)
 				sendThread(conn, t, true, false, true, true, false);
 
 			if(t) delete t;
@@ -584,7 +586,7 @@ void postSomething(mg_connection* conn, const char* uri){
 
 		if (strcmp(var_name, "input_file") == 0 && strcmp(file_name, "") != 0) {
 			if (data_len > 1024 * 1024 * 2){
-				printMsg(conn, "File is too big");
+				printMsg(conn, STRING_FILE_TOO_BIG);
 				return;
 			}
 
@@ -605,7 +607,7 @@ void postSomething(mg_connection* conn, const char* uri){
 			else if (endsWith(sfname, ".torrent"))
 				ext = ".xxx";
 			else{
-				printMsg(conn, "Invalid file format");
+				printMsg(conn, STRING_INVALID_FILE);
 				return;
 			}
 
@@ -622,7 +624,7 @@ void postSomething(mg_connection* conn, const char* uri){
 	}
 
 	//see if there is a SPECIAL string in the text field
-	if (strcmp(var1, "") == 0) strcpy(var1, "Untitled");
+	if (strcmp(var1, "") == 0) strcpy(var1, STRING_UNTITLED);
 	//user trying to sega a thread/reply
 	if (strstr(var3, "sage")) sage = true;
 	//user trying to delete a thread/reply
@@ -670,8 +672,10 @@ void postSomething(mg_connection* conn, const char* uri){
 	else{
 		//image or comment or both
 		if (strcmp(var2, "") == 0 && !fileAttached) {
-			printMsg(conn, "Please enter something");
+			printMsg(conn, STRING_EMPTY_COMMENT);
 			return;
+		}else if (strcmp(var2, "") == 0 && fileAttached){
+			strcpy(var2, STRING_UNCOMMENTED);
 		}
 	}
 	//fprintf(log_file, "[%s]", var4);
@@ -686,7 +690,7 @@ void postSomething(mg_connection* conn, const char* uri){
 	if (strcmp(ssid, "") == 0){
 		//user doesn't have a cookie, we give one
 		if (stop_newcookie){
-			printMsg(conn, "The board has stopped delivering new cookies");
+			printMsg(conn, STRING_STOP_COOKIE);
 			return;
 		}
 		else{
@@ -697,7 +701,7 @@ void postSomething(mg_connection* conn, const char* uri){
 	else{
 		vector<string> tmp = split(string(ssid), string("|"));
 		if (tmp.size() != 2){
-			printMsg(conn, "Your cookie is invalid");
+			printMsg(conn, STRING_INVALID_COOKIE);
 			return;
 		}else{
 			strncpy(username, tmp[0].c_str(), 10);
@@ -706,13 +710,13 @@ void postSomething(mg_connection* conn, const char* uri){
 				//this id is banned, so we destory it
 				destoryCookie(conn);
 				fprintf(log_file, "Cookie Destoryed: [%s] at %s", ssid, nowNow());
-				printMsg(conn, "Your ID is banned");
+				printMsg(conn, STRING_YOUR_ID_IS_BANNED);
 				return;
 			}
 
 			char *testssid = generateSSID(username);
 			if (strcmp(testssid, tmp[1].c_str()) != 0){
-				printMsg(conn, "Your cookie is broken");
+				printMsg(conn, STRING_INVALID_COOKIE);
 				delete [] testssid;
 				return;
 			}
@@ -758,7 +762,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		struct Thread* t = readThread_(pDb, id);
 
 		if(t->state & LOCKED_THREAD)
-			printMsg(conn, "You can't reply to a locked thread");
+			printMsg(conn, STRING_NO_REPLY_TO_LOCKED);
 		else{
 			newReply(pDb, id, tmpcontent.c_str(), var1, conn->remote_ip, username, var4, sage);
 			
@@ -778,7 +782,7 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
 	mg_send_header(conn, "charset", "utf-8");
 	printHeader(conn);
 	mg_printf_data(conn, show_hide_button);
-	mg_printf_data(conn, html_form, "/post_thread", "hiding", "[Start a New Thread]");
+	mg_printf_data(conn, html_form, "/post_thread", "hiding", STRING_NEW_THREAD);
 
 	if(indexPage)
 		showThreads(conn, 1, threadsPerPage);
@@ -828,7 +832,7 @@ static void send_reply(struct mg_connection *conn) {
 		mg_send_header(conn, "charset", "utf-8");
 		
 		if(id == 0)
-			printMsg(conn, "Successfully start a new thread");
+			printMsg(conn, STRING_NEW_THREAD_SUCCESS);
 		else{
 			printHeader(conn);
 			mg_printf_data(conn, html_redirtothread, id, id, id);
@@ -840,7 +844,7 @@ static void send_reply(struct mg_connection *conn) {
 		cclong pid = findParent(pDb, id);
 
 		if (pid == -1 && !verifyAdmin(conn)){
-			printMsg(conn, "This thread has been deleted");
+			printMsg(conn, STRING_THREAD_DELETED);
 			return ;
 		}
 		else{
@@ -850,7 +854,7 @@ static void send_reply(struct mg_connection *conn) {
 			if (pid)
 				mg_printf_data(conn, "<a href='/thread/%d'>&lt;&lt; No.%d</a><hr>", pid, pid);
 			else
-				mg_printf_data(conn, "<a href='/'>&lt;&lt; Homepage</a><hr>");
+				mg_printf_data(conn, "<a href='/'>&lt;&lt; "STRING_HOMEPAGE"</a><hr>");
 
 			showThread(conn, id);
 
@@ -887,7 +891,7 @@ static void send_reply(struct mg_connection *conn) {
 			else
 				printMsg(conn, "Can't set admin's cookie to null");
 		}else{
-			printMsg(conn, "Your don't have the permission");
+			printMsg(conn, STRING_NO_PERMISSION);
 			checkIP(conn, true);
 		}
 	}
@@ -899,7 +903,7 @@ static void send_reply(struct mg_connection *conn) {
 			printMsg(conn, "Admin has abdicated");
 			fprintf(log_file, "Admin has abdicated at %s", nowNow());
 		}else{
-			printMsg(conn, "Your don't have the permission");
+			printMsg(conn, STRING_NO_PERMISSION);
 			checkIP(conn, true);
 		}
 	}
@@ -918,7 +922,7 @@ static void send_reply(struct mg_connection *conn) {
 			writeThread(pDb, t->threadID, t, true);
 			printMsg(conn, "Thread's state updated successfully");
 		}else{
-			printMsg(conn, "Your don't have the permission");
+			printMsg(conn, STRING_NO_PERMISSION);
 			checkIP(conn, true);
 		}
 	}
@@ -929,7 +933,7 @@ static void send_reply(struct mg_connection *conn) {
 		if (verifyAdmin(conn))
 			userDeleteThread(conn, id, true);
 		else{
-			printMsg(conn, "Your don't have the permission");
+			printMsg(conn, STRING_NO_PERMISSION);
 			checkIP(conn, true);
 		}	
 	}
@@ -937,7 +941,7 @@ static void send_reply(struct mg_connection *conn) {
 		if (verifyAdmin(conn))
 			doThread(conn, extractLastNumber(conn), SAGE_THREAD);
 		else{
-			printMsg(conn, "Your don't have the permission");
+			printMsg(conn, STRING_NO_PERMISSION);
 			checkIP(conn, true);
 		}
 	}
@@ -945,7 +949,7 @@ static void send_reply(struct mg_connection *conn) {
 		if (verifyAdmin(conn))
 			doThread(conn, extractLastNumber(conn), LOCKED_THREAD);
 		else{
-			printMsg(conn, "Your don't have the permission");
+			printMsg(conn, STRING_NO_PERMISSION);
 			checkIP(conn, true);
 		}
 	}
@@ -975,7 +979,7 @@ static void send_reply(struct mg_connection *conn) {
 			f.close();
 		}
 		else{
-			printMsg(conn, "Your don't have the permission");
+			printMsg(conn, STRING_NO_PERMISSION);
 			checkIP(conn, true);
 		}
 	}
@@ -991,6 +995,11 @@ static void send_reply(struct mg_connection *conn) {
 			struct Thread *r = readThread_(pDb, 0); 
 			struct Thread *t;
 			bool ipflag = strstr(conn->uri, "/ip/"), killflag = strstr(conn->uri, "/kill/");
+
+			if (strcmp(conn->uri, "/list") == 0){
+				userListThread(conn, true);
+				return;
+			}
 
 			printHeader(conn);
 			clock_t startc = clock();
@@ -1038,7 +1047,7 @@ static void send_reply(struct mg_connection *conn) {
 			printMsg(conn, "Rename image from %s to %s", oldname.c_str(), newname.c_str());
 		}
 		else{
-			printMsg(conn, "Your don't have the permission");
+			printMsg(conn, STRING_NO_PERMISSION);
 			checkIP(conn, true);
 		}
 	}
@@ -1087,7 +1096,7 @@ static void send_reply(struct mg_connection *conn) {
 			printMsg(conn, "Your have closed/opened new cookie delivering");
 			fprintf(log_file, "Cookie closed/opened at %s", nowNow());
 		}else{
-			printMsg(conn, "Your don't have the permission");
+			printMsg(conn, STRING_NO_PERMISSION);
 			checkIP(conn, true);
 		}
 	}
