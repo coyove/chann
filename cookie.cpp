@@ -14,10 +14,11 @@ void setCookie(mg_connection *conn, const char *ssid){
 
 	mg_printf(conn,
 		"HTTP/1.1 200 OK\r\n"
+		"Set-Cookie: ssid=%s; expires=%s; max-age=%d; path=/; http-only; HttpOnly;\r\n"
 		"Content-type: text/html\r\n"
-		"Set-Cookie: ssid=%s; max-age=%d; expire=%s; path=/; http-only; HttpOnly;\r\n"
+		"X-UA-Compatible: IE=edge\r\n"
 		"Content-Length: 0\r\n",
-		ssid, 60 * 60 * 24 * 30, expire);
+		ssid, expire, 60 * 60 * 24 * 30);
 }
 
 char* generateSSID(const char *user_name) {

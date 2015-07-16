@@ -112,7 +112,7 @@ char *html_header =
 "}"
 "pox {background: cadetblue;"
 "color:white;"
-"border-radius: 25%%;"
+"border-radius: 0.4em;"
 "font-size: 0.8em;"
 "padding: 0em 0.4em;"
 "vertical-align: bottom;"
