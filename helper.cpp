@@ -3,11 +3,29 @@
 using namespace std;
 
 extern unqlite* pDb;
+extern FILE* log_file;
 
 char* nowNow(){
 	time_t rawtime;
 	time(&rawtime);
-	return asctime(localtime(&rawtime));
+
+	char *timetmp = new char[64];
+	struct tm * timeinfo;
+	timeinfo = localtime(&(rawtime));
+
+	strftime(timetmp, 64, "%Y/%m/%d %X", timeinfo);
+	return timetmp;//asctime(localtime(&rawtime));
+}
+
+void logLog(const char* msg, ...){
+	fprintf(log_file, "[%s]\t", nowNow());
+
+	va_list argptr;
+	va_start(argptr, msg);
+	vfprintf(log_file, msg, argptr);
+	va_end(argptr);
+
+	fprintf(log_file, "\n");
 }
 
 void Fatal(const char *zMsg)

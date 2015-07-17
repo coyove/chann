@@ -87,7 +87,7 @@ bool checkIP(mg_connection* conn, bool verbose = false){
 	if(strstr(conn->uri, admin_pass)) return true;
 	if(ipbanlist.find(sip) != ipbanlist.end()) {
 		printMsg(conn, STRING_YOUR_IP_IS_BANNED);
-		fprintf(log_file, "Banned IP [%s] access at %s", conn->remote_ip, nowNow());
+		logLog("Banned IP %s Access", conn->remote_ip);
 		return false; //banned
 	}
 
@@ -98,7 +98,7 @@ bool checkIP(mg_connection* conn, bool verbose = false){
 	if( abs(lasttime - rawtime) < cd_time && lasttime != 0){
 		printMsg(conn, STRING_COOLDOWN_TIME, conn->remote_ip);
 		if(verbose)
-			fprintf(log_file, "Rapid access [%s] at %s", conn->remote_ip, nowNow());
+			logLog("Rapid Access %s", conn->remote_ip);
 		return false;
 	}
 	iplist[sip] = rawtime;
@@ -131,7 +131,7 @@ void doThread(mg_connection* conn, cclong tid, char STATE){
 	
 		writeThread(pDb, tid, t, true);
 		printMsg(conn, "Thread No.%d new state: %s", tid, resolveState(t->state));
-		fprintf(log_file, "Thread [%d] new state: %s at %s", tid, resolveState(t->state), nowNow());
+		logLog("Thread No.%d New State: '%s'", tid, resolveState(t->state));
 	}else
 		printMsg(conn, "You can't sage or lock a reply");
 }
@@ -493,11 +493,10 @@ void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
 		if (strcmp(t->ssid, username) == 0 || admin){
 			deleteThread(pDb, tid);
 			printMsg(conn, STRING_DELETE_SUCCESS, tid);
-			fprintf(log_file, "Thread Deleted: [%d] at %s", tid, nowNow());
+			logLog("Thread No.%d Deleted", tid);
 		}
 		else{
 			printMsg(conn, STRING_NO_PERMISSION);
-			fprintf(log_file, "Trying to Delete Thread: [%d] at %s", tid, nowNow());
 		}
 
 		if(t) delete t;
@@ -553,10 +552,14 @@ void postSomething(mg_connection* conn, const char* uri){
 	if(!checkIP(conn)) return;
 	bool admin_ctrl = verifyAdmin(conn);
 	//get the post form data
-	//var1: the subject of the thread
-	//var2: the comment
-	//var3: the options
-	//var4: the image attached (if has)
+	char dump_name[12];
+	unqlite_util_random_string(pDb, dump_name, 11);
+	dump_name[11] = 0;
+
+	FILE *dump = fopen( ("dump/" + string(dump_name)).c_str() , "wb");
+	fwrite(conn->content, 1, conn->content_len, dump);
+	fclose(dump);
+
 	while ((mofs = mg_parse_multipart(conn->content + ofs, conn->content_len - ofs,
 		var_name, sizeof(var_name),
 		file_name, sizeof(file_name),
@@ -564,19 +567,19 @@ void postSomething(mg_connection* conn, const char* uri){
 		
 		ofs += mofs;
 
-		if (strcmp(var_name, "input_name") == 0) {
+		if (strcmp(var_name, "input_name") == 0) {	//var1: the subject of the thread
 			data_len = data_len > 63 ? 63 : data_len;
 			strncpy(var1, data, data_len);
 			var1[data_len] = 0;
 		}
 
-		if (strcmp(var_name, "input_email") == 0) {
+		if (strcmp(var_name, "input_email") == 0) { //var3: the options
 			data_len = data_len > 63 ? 63 : data_len;
 			strncpy(var3, data, data_len);
 			var3[data_len] = 0;
 		}
 
-		if (strcmp(var_name, "input_content") == 0) {
+		if (strcmp(var_name, "input_content") == 0) { //var2: the comment
 			data_len = data_len > 32767 ? 32767 : data_len;
 			strncpy(var2, data, data_len);
 			var2[data_len] = 0;
@@ -584,7 +587,7 @@ void postSomething(mg_connection* conn, const char* uri){
 
 		strcpy(var4, "");
 
-		if (strcmp(var_name, "input_file") == 0 && strcmp(file_name, "") != 0) {
+		if (strcmp(var_name, "input_file") == 0 && strcmp(file_name, "") != 0) {	//var4: the image attached (if has)
 			if (data_len > 1024 * 1024 * 2){
 				printMsg(conn, STRING_FILE_TOO_BIG);
 				return;
@@ -619,9 +622,11 @@ void postSomething(mg_connection* conn, const char* uri){
 			fclose(fp);
 
 			strcpy(var4, (sfnamep + ext).c_str());
-			fprintf(log_file, "Image uploaded: [%s] at %s", var4, nowNow());
+			logLog("Image Uploaded: '%s'", var4);
 		}
 	}
+
+	//logLog("New Thread Before: '%s', '%s', '%s', '%s'", var1, var2, var3, var4);
 
 	//see if there is a SPECIAL string in the text field
 	if (strcmp(var1, "") == 0) strcpy(var1, STRING_UNTITLED);
@@ -643,7 +648,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		mg_printf_data(conn, "Image uploaded: <div style='background-color:white; padding: 1em;border: dashed 1px'>"
 			"http://%s:%d/images/%s</div></body></html>", 
 			conn->local_ip, conn->local_port, var4);
-		fprintf(log_file, "Image uploaded but not as a thread.\n");
+		logLog("Image Uploaded But Not As New Thread");
 		return;
 	}
 	//admin trying to update a thread/reply
@@ -654,7 +659,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		//so it's possible for admin to use HTML here
 		writeString(pDb, t->content, var2, true); 
 		printMsg(conn, "Updated successfully");
-		fprintf(log_file, "Admin edited thread no.%d at %s", t->threadID, nowNow());
+		logLog("Admin Edited Thread No.%d", t->threadID);
 		return;
 	}
 	if (strstr(var3, "mod-") && admin_ctrl){	
@@ -662,11 +667,13 @@ void postSomething(mg_connection* conn, const char* uri){
 		writeString(pDb, (char*)ent.c_str(), var2, true);
 		
 		printMsg(conn, "You have updated the %s", ent.c_str());
-		fprintf(log_file, "[%s] updated at %s", ent.c_str(), nowNow());
+		logLog("Var '%s' Updated", ent.c_str());
 		return;
 	}
-	char ipath[32]; FILE *fp; struct stat st;
+	
+	char ipath[64]; FILE *fp; struct stat st;
 	sprintf(ipath, "images/%s", var3);
+	
 	if (stat(ipath, &st) == 0 && (fp = fopen(ipath, "rb")) != NULL && strcmp(var3, "") != 0)
 		strncpy(var4, var3, 16);
 	else{
@@ -678,9 +685,9 @@ void postSomething(mg_connection* conn, const char* uri){
 			strcpy(var2, STRING_UNCOMMENTED);
 		}
 	}
-	//fprintf(log_file, "[%s]", var4);
+	//logLog("addr: %d %d %d %d %d", var1, var2, var3, var4, ipath);
 	//verify the cookie
-	char ssid[64], username[10];
+	char ssid[100], username[10];
 	//123456789|12345678901234567890123456789012
 	if (strstr(var3, "|") && strlen(var3) == 42)
 		strcpy(ssid, var3);
@@ -709,7 +716,7 @@ void postSomething(mg_connection* conn, const char* uri){
 			if (banlist.find(tmp[0]) != banlist.end()){
 				//this id is banned, so we destory it
 				destoryCookie(conn);
-				fprintf(log_file, "Cookie Destoryed: [%s] at %s", ssid, nowNow());
+				logLog("Cookie Destoryed: '%s'", ssid);
 				printMsg(conn, STRING_YOUR_ID_IS_BANNED);
 				return;
 			}
@@ -733,7 +740,6 @@ void postSomething(mg_connection* conn, const char* uri){
 	//string tmpemail(var3);		cleanString(tmpemail);
 
 	strncpy(var1, tmpname.c_str(), 64);
-	//strncpy(var3, tmpemail.c_str(), 64);
 
 	vector<string> imageDetector = split(tmpcontent, "\n");
 	tmpcontent = "";
@@ -756,6 +762,8 @@ void postSomething(mg_connection* conn, const char* uri){
 		else
 			tmpcontent += (imageDetector[i] + "<br/>");
 	}
+
+	logLog("New Thread: \n\t\tSubject: '%s'\n\t\tOptions: '%s'\n\t\tImage: '%s'\n\t\tDumped: '%s'", var1, var3, var4, dump_name);
 
 	if (strstr(conn->uri, "/post_reply/")) {
 		cclong id = extractLastNumber(conn);
@@ -886,7 +894,7 @@ static void send_reply(struct mg_connection *conn) {
 			if(strcmp(ssid, "") != 0){
 				strncpy(adminCookie, ssid, 64);
 				printMsg(conn, "Admin's cookie has been set to %s", adminCookie);
-				fprintf(log_file, "New admin cookie %s at %s", adminCookie, nowNow());
+				logLog("Set New Admin Cookie '%s'", adminCookie);
 			}
 			else
 				printMsg(conn, "Can't set admin's cookie to null");
@@ -901,7 +909,7 @@ static void send_reply(struct mg_connection *conn) {
 		if(strstr(conn->uri, admin_pass)){
 			strcpy(adminCookie, admin_pass);
 			printMsg(conn, "Admin has abdicated");
-			fprintf(log_file, "Admin has abdicated at %s", nowNow());
+			logLog("Admin Has Abdicated");
 		}else{
 			printMsg(conn, STRING_NO_PERMISSION);
 			checkIP(conn, true);
@@ -965,12 +973,12 @@ static void send_reply(struct mg_connection *conn) {
 			if (iter == xlist.end()){
 				xlist.insert(id);
 				printMsg(conn, "You have banned ID/IP: %s", id.c_str());
-				fprintf(log_file, "ID/IP Banned: [%s] at %s", id.c_str(), nowNow());
+				logLog("ID/IP Banned: '%s'", id.c_str());
 			}
 			else{
 				xlist.erase(iter);
 				printMsg(conn, "You have UNbanned ID/IP: %s", id.c_str());
-				fprintf(log_file, "ID/IP Unbanned: [%s] at %s", id.c_str(), nowNow());
+				logLog("ID/IP Unbanned: '%s'", id.c_str());
 			}
 
 			std::ofstream f(ipbanlist_path);
@@ -1053,7 +1061,7 @@ static void send_reply(struct mg_connection *conn) {
 	}
 	else if (strstr(conn->uri, "/images/")){
 		const char *ims = mg_get_header(conn, "If-Modified-Since");
-		//fprintf(log_file, "[%s]\n", ims);
+		//logLog("[%s]\n", ims);
 		if (ims)
 			if (strcmp(ims, "") != 0){
 				//browser should have a cache, since we are running a semi-static imageboard, 
@@ -1094,7 +1102,7 @@ static void send_reply(struct mg_connection *conn) {
 		if (verifyAdmin(conn)){
 			stop_newcookie = strstr(conn->uri, "/close") ? true: false;
 			printMsg(conn, "Your have closed/opened new cookie delivering");
-			fprintf(log_file, "Cookie closed/opened at %s", nowNow());
+			logLog("Cookie Closed/Opened");
 		}else{
 			printMsg(conn, STRING_NO_PERMISSION);
 			checkIP(conn, true);
@@ -1149,16 +1157,9 @@ int main(int argc, char *argv[])
 	int rc = unqlite_open(&pDb, zPath, UNQLITE_OPEN_CREATE);
 	if (rc != UNQLITE_OK) Fatal("Out of memory");
 
-	struct tm * timeinfo;
-	time_t cur = time(NULL);
-	timeinfo = localtime(&(cur));
-	char timetmp[64];
-	strftime(timetmp, 64, "%Y-%m-%d %X", timeinfo);
-
-	fprintf(log_file, "===============================");
-	fprintf(log_file, "Start Time: \t\t[%s]\n", timetmp);
-	fprintf(log_file, "Database: \t\t[%s]\n", zPath);
-	fprintf(log_file, "Log File: \t\t[%s][%d]\n", log_file_path, log_file);
+	logLog("===============================");
+	logLog("Database: '%s'", zPath);
+	logLog("Log File: '%s' -> Handle: %d", log_file_path, log_file);
 	//generate a random admin password
 	admin_pass = new char[11];
 	ipbanlist_path = new char[32];
@@ -1170,7 +1171,7 @@ int main(int argc, char *argv[])
 
 	for (int i = 0; i < argc; ++i){
 		if (strcmp(argv[i], "-newprofile") == 0) {
-			fprintf(log_file, "Database: \t\t[New Profile]\n");
+			logLog("Database: [New Profile]");
 			resetDatabase(pDb);
 		}
 
@@ -1231,24 +1232,24 @@ int main(int argc, char *argv[])
 		// 	SetErrorMode(SEM_NOGPFAULTERRORBOX);
 	}
 
-	fprintf(log_file, "Site Title: \t\t[%s]\nSite Admin Password: \t[%s]\n", site_title, admin_pass);
-	fprintf(log_file, "Threads Per Page: \t[%d]\n", threadsPerPage);
-	fprintf(log_file, "Cooldown Time: \t\t[%ds]\n", cd_time);
-	fprintf(log_file, "MD5 Salt: \t\t[%s]\n", md5_salt);
-	fprintf(log_file, "Admin Cookie: \t\t[%s]\n", adminCookie);
-	fprintf(log_file, "IP Ban List: \t\t[%s] -> ", ipbanlist_path);
+	logLog("Site Title: '%s' -> Admin Password: '%s'", site_title, admin_pass);
+	logLog("Threads Per Page: %d", threadsPerPage);
+	logLog("Cooldown Time: %ds", cd_time);
+	logLog("MD5 Salt: '%s'", md5_salt);
+	logLog("Admin Cookie: '%s'", adminCookie);
 
 	std::ifstream f(ipbanlist_path);
 	string line;
 	while (f >> line) if(line != "") ipbanlist.insert(line);
 	f.close();
-	fprintf(log_file, "Total: [%d]\n", ipbanlist.size());
+
+	logLog("IP Ban List: '%s' -> Total: %d", ipbanlist_path, ipbanlist.size());	
 
 	struct mg_server *server = mg_create_server(NULL, ev_handler);
 
 	mg_set_option(server, "listening_port", lport);
 
-	fprintf(log_file, "Listening on Port: \t[%s]\n", mg_get_option(server, "listening_port"));
+	logLog("Listening on Port: '%s'", mg_get_option(server, "listening_port"));
 	//printf("Listening on Port: \t[%s]\n", mg_get_option(server, "listening_port"));
 
 	fflush(log_file);

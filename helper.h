@@ -27,3 +27,4 @@ cclong extractLastNumber(mg_connection* conn);
 void cleanString(string& str);
 char* nowNow();
 void Fatal(const char *zMsg);
+void logLog(const char* msg, ...);
