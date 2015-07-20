@@ -115,7 +115,7 @@ int deleteThread(unqlite *pDb, cclong tid){
 	return 1;
 }
 
-int newThread(unqlite *pDb, const char* content, char* author, char* email, char* ssid, char* imgSrc, bool sega){
+int newThread(unqlite *pDb, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega){
 	struct Thread *t = new Thread();
 
 	char contentkey[16];
@@ -168,7 +168,7 @@ int newThread(unqlite *pDb, const char* content, char* author, char* email, char
 	return 1;
 }
 
-int newReply(unqlite *pDb, cclong id, const char* content, char* author, char* email, char* ssid, char* imgSrc, bool sega){
+int newReply(unqlite *pDb, cclong id, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega){
 	struct Thread *r = readThread_(pDb, id);
 	struct Thread *root = readThread_(pDb, 0);
 	struct Thread *self = r;

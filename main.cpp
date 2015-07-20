@@ -41,9 +41,15 @@ unordered_set<string> ipbanlist;//ip ban list
 char* ipbanlist_path;			//file to store ip ban list
 bool stop_newcookie = false;	//stop delivering new cookies
 bool stop_ipcheck = false;		//stop checking ip
+bool use_XFF_IP= false;
 map<string, cclong> iplist;		//remote ip list
 char adminCookie[64];			//Admin's cookie
 FILE* log_file;					//log file
+
+const char * getClientIP(mg_connection* conn){
+	const char * xff = mg_get_header(conn, "X-Forwarded-For");
+	return use_XFF_IP ? (xff ? xff : conn->remote_ip) : conn->remote_ip;
+}
 
 void printFooter(mg_connection* conn){
 	char * footer = readString(pDb, "footer");
@@ -81,13 +87,14 @@ bool checkIP(mg_connection* conn, bool verbose = false){
 
 	time_t rawtime;
 	time(&rawtime);
-	string sip(conn->remote_ip);
+	const char * cip = getClientIP(conn);
+	string sip(cip);
 	time_t lasttime = iplist[sip];
 	
 	if(strstr(conn->uri, admin_pass)) return true;
 	if(ipbanlist.find(sip) != ipbanlist.end()) {
 		printMsg(conn, STRING_YOUR_IP_IS_BANNED);
-		logLog("Banned IP %s Access", conn->remote_ip);
+		logLog("Banned IP %s Access", cip);
 		return false; //banned
 	}
 
@@ -96,9 +103,9 @@ bool checkIP(mg_connection* conn, bool verbose = false){
 	if(strcmp(ssid, adminCookie) == 0) return true;
 
 	if( abs(lasttime - rawtime) < cd_time && lasttime != 0){
-		printMsg(conn, STRING_COOLDOWN_TIME, conn->remote_ip);
+		printMsg(conn, STRING_COOLDOWN_TIME, cip);
 		if(verbose)
-			logLog("Rapid Access %s", conn->remote_ip);
+			logLog("Rapid Access %s", cip);
 		return false;
 	}
 	iplist[sip] = rawtime;
@@ -540,7 +547,7 @@ void userListThread(mg_connection* conn, bool admin_view = false){
 }
 
 void postSomething(mg_connection* conn, const char* uri){
-	char var1[64], var2[32768], var3[64], var4[16];
+	char var1[64] = {'\0'}, var2[32768] = {'\0'}, var3[64] = {'\0'}, var4[16] = {'\0'};
 	bool sage = false;
 	bool fileAttached = false;
 	bool user_delete = false;
@@ -559,6 +566,11 @@ void postSomething(mg_connection* conn, const char* uri){
 	FILE *dump = fopen( ("dump/" + string(dump_name)).c_str() , "wb");
 	fwrite(conn->content, 1, conn->content_len, dump);
 	fclose(dump);
+
+	if(conn->content_len <= 0){
+		printMsg(conn, STRING_UNKNOWN_ERROR);
+		return;
+	}
 
 	while ((mofs = mg_parse_multipart(conn->content + ofs, conn->content_len - ofs,
 		var_name, sizeof(var_name),
@@ -763,7 +775,8 @@ void postSomething(mg_connection* conn, const char* uri){
 			tmpcontent += (imageDetector[i] + "<br/>");
 	}
 
-	logLog("New Thread: \n\t\tSubject: '%s'\n\t\tOptions: '%s'\n\t\tImage: '%s'\n\t\tDumped: '%s'", var1, var3, var4, dump_name);
+	const char * cip = getClientIP(conn);
+	logLog("New Thread: (Sub: '%s', Opt: '%s', Img: '%s', Dump: '%s', IP: '%s')", var1, var3, var4, dump_name, cip);
 
 	if (strstr(conn->uri, "/post_reply/")) {
 		cclong id = extractLastNumber(conn);
@@ -772,7 +785,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		if(t->state & LOCKED_THREAD)
 			printMsg(conn, STRING_NO_REPLY_TO_LOCKED);
 		else{
-			newReply(pDb, id, tmpcontent.c_str(), var1, conn->remote_ip, username, var4, sage);
+			newReply(pDb, id, tmpcontent.c_str(), var1, cip, username, var4, sage);
 			
 			mg_printf(conn, "HTTP/1.1 301 Moved Permanently\r\nLocation: /success/%s/%d\r\n\r\n", ssid, id);
 		}
@@ -780,7 +793,7 @@ void postSomething(mg_connection* conn, const char* uri){
 		if(t) delete t;
 	}
 	else{
-		newThread(pDb, tmpcontent.c_str(), var1, conn->remote_ip, username, var4, sage);
+		newThread(pDb, tmpcontent.c_str(), var1, cip, username, var4, sage);
 		//printMsg(conn, "Successfully start a new thread");
 		mg_printf(conn, "HTTP/1.1 301 Moved Permanently\r\nLocation: /success/%s/0\r\n\r\n", ssid);
 	}
@@ -1099,13 +1112,18 @@ static void send_reply(struct mg_connection *conn) {
 		}
 	}
 	else if (strstr(conn->uri, "/cookie/")){
-		if (verifyAdmin(conn)){
-			stop_newcookie = strstr(conn->uri, "/close") ? true: false;
-			printMsg(conn, "Your have closed/opened new cookie delivering");
-			logLog("Cookie Closed/Opened");
+		if (strstr(conn->uri, "/destory")){
+			destoryCookie(conn);
+			printMsg(conn, STRING_RESET_COOKIE);
 		}else{
-			printMsg(conn, STRING_NO_PERMISSION);
-			checkIP(conn, true);
+			if (verifyAdmin(conn)){
+				stop_newcookie = strstr(conn->uri, "/close") ? true: false;
+				printMsg(conn, "Your have closed/opened new cookie delivering");
+				logLog("Cookie Closed/Opened");
+			}else{
+				printMsg(conn, STRING_NO_PERMISSION);
+				checkIP(conn, true);
+			}
 		}
 	}
 	else 
@@ -1130,8 +1148,7 @@ static int ev_handler(struct mg_connection *conn, enum mg_event ev) {
 	}
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]){
 	//SetErrorMode(SEM_NOGPFAULTERRORBOX);
 
 	site_title = ""; //&#21311;&#21517;&#29256;
@@ -1217,6 +1234,9 @@ int main(int argc, char *argv[])
 
 		if (strcmp(argv[i], "-benchmark") == 0)
 			stop_ipcheck = true;
+
+		if (strcmp(argv[i], "-XFF") == 0)
+			use_XFF_IP = true;
 
 		if (strcmp(argv[i], "-admincookie") == 0){
 			strcpy(adminCookie, argv[++i]);

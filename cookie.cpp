@@ -72,7 +72,7 @@ char* giveNewCookie(mg_connection* conn){
 
 	//setCookie(conn, finalssid);
 
-	fprintf(log_file, "New cookie delivered: [%s] at %s", finalssid, nowNow());
+	logLog("New Cookie Delivered: '%s'", finalssid);
 
 	return username;
 }
