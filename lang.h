@@ -29,7 +29,7 @@
 #define STRING_NEW_THREAD_SUCCESS	"成功发表新串"
 #define STRING_RETURN_THREAD 		"回复成功, 2s后返回<a href=\"/thread/%d\">No.%d</a>."
 #define STRING_HOMEPAGE 			"主页"
-#define STRING_WEEK 				"['一', '二', '三', '四', '五', '六', '日']"
+#define STRING_WEEK 				"['日', '一', '二', '三', '四', '五', '六']"
 #define STRING_NO_PERMISSION		"您没有管理员权限"
 #define STRING_YOUR_IP_IS_BANNED	"您的IP已被限制"
 #define STRING_YOUR_ID_IS_BANNED	"您的ID已被限制"

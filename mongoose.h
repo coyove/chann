@@ -28,8 +28,6 @@
 extern "C" {
 #endif // __cplusplus
 
-#define NS_ENABLE_SSL
-
 // This structure contains information about HTTP request.
 struct mg_connection {
   const char *request_method; // "GET", "POST", etc
