@@ -133,7 +133,7 @@ char *html_header =
 "hr{"
     "clear:left"
 "}"
-".uid{"
+"ssid{"
     "font-family: consolas"
 "}"
 ".state{"

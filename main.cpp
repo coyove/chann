@@ -158,124 +158,134 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
     if (!(r->state & NORMAL_DISPLAY) && !admin_view) return;
 
     struct tm * timeinfo;
-    char tmp[65536];
+    char tmp[65536] = {'\0'};
     timeinfo = localtime(&(r->date));
     int len;
 
-    bool reply = display_state & SEND_IS_REPLY;
+    bool reply 		= display_state & SEND_IS_REPLY;
     bool show_reply = display_state & SEND_SHOW_REPLY_LINK;
     bool cut_cclong = display_state & SEND_CUT_LONG_COMMENT;
-    bool cut_image = display_state & SEND_CUT_IMAGE;
-    bool cut_count = display_state & SEND_CUT_REPLY_COUNT;
+    bool cut_image 	= display_state & SEND_CUT_IMAGE;
+    bool cut_count 	= display_state & SEND_CUT_REPLY_COUNT;
     
     //the date and time
     char timetmp[64];
     strftime(timetmp, 64, "%Y-%m-%d %X", timeinfo);
 
-    char crl[128], sage[128], locked[128], deleted[64], display_ssid[64], width1[64], width2[32];
-    sprintf(crl, show_reply ? "[<a href=\"/thread/%d\">"STRING_REPLY"</a>]" : "", r->threadID); 
+    char crl[128] = {'\0'}; //, display_ssid[100] = {'\0'}; //, width1[64], width2[32];
+    snprintf(crl, 127, show_reply ? "[<a href=\"/thread/%d\">"STRING_REPLY"</a>]" : "", r->threadID); 
     //a reply thread has an horizontal offset(20px) at left
-    strcpy(width1, reply ? "<div class='holder'>&gt;&gt;</div>" : "");
-    strcpy(width2, reply ? "class='thread header' " : "class='thread' ");
+    // strcpy(width1, reply ? "<div class='holder'>&gt;&gt;</div>" : "");
+    // strcpy(width2, reply ? "class='thread header' " : "class='thread' ");
     //display the sage flag
-    strcpy(sage, (r->state & SAGE_THREAD && !reply) ? "<font color='red'><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></font><br/>" : "");
+    // strcpy(sage, (r->state & SAGE_THREAD && !reply) ? "<font color='red'><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></font><br/>" : "");
     //display the lock flag
-    strcpy(locked, r->state & LOCKED_THREAD ? "<font color='red'><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></font><br/>" : "");
+    // strcpy(locked, r->state & LOCKED_THREAD ? "<font color='red'><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></font><br/>" : "");
     //display the red name
-    strcpy(display_ssid, (strcmp(r->ssid, "Admin") == 0) ? "<font color='red'>"STRING_ADMIN"</font>" : r->ssid);
-    if(strcmp(r->ssid, iid) == 0) strcat(display_ssid, "<pox>"STRING_POSTER"</pox>");
+    // strcpy(display_ssid, (strcmp(r->ssid, "Admin") == 0) ? "<font color='red'>"STRING_ADMIN"</font>" : r->ssid);
+    // if(strcmp(r->ssid, iid) == 0) strcat(display_ssid, "<pox>"STRING_POSTER"</pox>");
     //display the deleted flag
-    strcpy(deleted, !(r->state & NORMAL_DISPLAY) ? "<font color='red'><b>&#10006;&nbsp;Deleted</b></font><br/>" : "");
+    // strcpy(deleted, !(r->state & NORMAL_DISPLAY) ? "<font color='red'><b>&#10006;&nbsp;Deleted</b></font><br/>" : "");
 
-    char reply_count[150];
+    char reply_count[256] = {'\0'};
     if(r->childThread){
         struct Thread* c = readThread_(pDb, r->childThread);
         if(c->childCount > 5 && show_reply && !reply)
-            sprintf(reply_count, 
+            snprintf(reply_count, 255,
                 "<font color='darkcyan'>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES_HIDE"</i></font><br/>", 
                 c->childCount - 5, crl); 
         else if(!cut_count){
-            sprintf(reply_count, 
+            snprintf(reply_count, 255,
                 "<font color='darkcyan'>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES"</i></font><br/>", 
                 c->childCount); 
         }
-    }else
-        strcpy(reply_count, "");
+        delete c;
+    }
 
-    char ref_or_link[128];
+    char ref_or_link[64] = {'\0'};
     if(show_reply)
-        sprintf(ref_or_link, "<a href='javascript:qref(%d)'>No.%d</a>", r->threadID, r->threadID);
+        snprintf(ref_or_link, 63, "<a href='javascript:qref(%d)'>No.%d</a>", r->threadID, r->threadID);
     else
-        sprintf(ref_or_link, "<a href='/thread/%d'>No.%d</a>", r->threadID, r->threadID);
+        snprintf(ref_or_link, 63, "<a href='/thread/%d'>No.%d</a>", r->threadID, r->threadID);
 
-    char display_image[128];
-    if (strlen(r->imgSrc) < 4)// == 0 || strcmp(r->imgSrc, "x") == 0)
-        strcpy(display_image, "");
-    else{
+    char display_image[128] = {'\0'};
+    if (strlen(r->imgSrc) >= 4){
         if(cut_image){
             struct stat st;
             string filename(r->imgSrc);
             stat(("images/" + filename).c_str(), &st);
 
-            sprintf(display_image, "<div class='img'><a href='/images/%s'>["STRING_VIEW_IMAGE" (%d kb)]</a></div>", 
+            snprintf(display_image, 127, "<div class='img'><a href='/images/%s'>["STRING_VIEW_IMAGE" (%d kb)]</a></div>", 
                 r->imgSrc, st.st_size / 1024);
 
         }
         else{
             if(reply)
-                sprintf(display_image, "<div class='img'><a href='/images/%s'><img class='imgs' src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
+                snprintf(display_image, 127, "<div class='img'><a href='/images/%s'><img class='imgs' src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
             else
-                sprintf(display_image, "<div class='img'><a href='/images/%s'><img src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
+                snprintf(display_image, 127, "<div class='img'><a href='/images/%s'><img src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
         }
     }
 
-    char admin_ctrl[512];
+    char admin_ctrl[128] = {'\0'};
     if(admin_view)
-        sprintf(admin_ctrl, "<span id='admin-%d'><small>%s</small><a class='wp-btn' onclick='javascript:admc(%d)'>%s</a></span>", r->threadID, r->email, r->threadID, STRING_ADMIN_CONSOLE);
-    else
-        strcpy(admin_ctrl, "");
+        snprintf(admin_ctrl, 127, "&nbsp;<span id='admin-%d'><a class='wp-btn' onclick='javascript:admc(%d)'>%s</a></span>", r->threadID, r->threadID, r->email);
 
     //if the content is too cclong to display
-    char c_content[1050];
+    char c_content[1050] = {'\0'};
     char* content = readString(pDb, r->content);
     strncpy(c_content, content, 1000);
     c_content[1000] = 0;
 
-    if (strlen(content) > 1000){
-        char *more_content = "<font color='red'><b>[more]</b></font>";
-        strcat(c_content, more_content);
-    }
+    if (strlen(content) > 1000) strcat(c_content, "<font color='red'><b>[more]</b></font>");
 
-    len = sprintf(tmp,
-        "<div>%s<div %s>"
-        "%s"
-        "%s&nbsp;<font color='#228811'>%s</font>&nbsp;"
-        "<span class='tms hiding'>%d</span><span class='tmsc'>%s</span> ID:<span class='uid'>%s</span> %s %s"
-        "<div class='quote'>%s</div>"
-        "%s"
-        "%s"
-        "%s"
-        "%s"
-        "</div></div>",
-        width1, width2,
+    len = snprintf(tmp, 65535,
+        "<div>%s"
+        	"<div %s>"
+        		/*image*/
+        		"%s"
+        		/*thread header*/
+        		"%s&nbsp;<font color='#228811'>%s</font>&nbsp;"
+        		"<span class='tms hiding'>%d</span><span class='tmsc'>%s</span>&nbsp;"
+        		"ID:<ssid>%s%s</ssid> %s %s"
+        		/*thread comment*/
+        		"<div class='quote'>%s</div>"
+		        "%s"
+		        "%s"
+		        "%s"
+		        "%s"
+        	"</div>"
+        "</div>",
+        /*place holder*/
+        reply 								? "<div class='holder'>&gt;&gt;</div>" : "", 
+        reply 								? "class='thread header'" : "class='thread'",
+        /*image*/
         display_image, 
         ref_or_link, r->author, 
-        r->date, timetmp, display_ssid, crl, admin_ctrl,
-        cut_cclong ? c_content : content, 
-        sage, 
-        locked, 
-        reply_count,
-        deleted);
+        r->date, timetmp, 
+        (strcmp(r->ssid, "Admin") == 0) 	? "<font color='red'>"STRING_ADMIN"</font>" : r->ssid, 
+        (strcmp(r->ssid, iid) == 0)			? "<pox>"STRING_POSTER"</pox>" : "", 
+        crl, admin_ctrl,
+        /*do we cut long comment?*/
+        cut_cclong 							? c_content : content, 
+        /*thread state*/
+        (r->state & SAGE_THREAD && !reply) 	? "<font color='red'><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></font><br/>" : "", 
+        (r->state & LOCKED_THREAD) 			? "<font color='red'><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></font><br/>" : "", 
+        !(r->state & NORMAL_DISPLAY) 		? "<font color='red'><b>&#10006;&nbsp;"STRING_THREAD_DELETED"</b></font><br/>" : "",
+        /*reply count*/
+        reply_count);
 
     mg_send_data(conn, tmp, len);
+
+    if(content) delete [] content;
 }
 
 void requestAdminConsole(mg_connection* conn, struct Thread* r){
     char admin_ctrl[1024];
-    int len = sprintf(admin_ctrl, "<br><span>["
-                        "<a class='wp-btn' href='/sage/%d' title='SAGE'>&#128078;</a>"
-                        "<a class='wp-btn' href='/lock/%d' title='LOCK'>&#128274;</a>"
-                        "<a class='wp-btn' href='/delete/%d' title='DEL'>&#10006;</a>"
+    int len = sprintf(admin_ctrl, "<br><span>"
+                        "<a class='wp-btn' href='/sage/%d' title='Sage Thread'>&#128078;</a>"
+                        "<a class='wp-btn' href='/lock/%d' title='Lock Thread'>&#128274;</a>"
+                        "<a class='wp-btn' href='/delete/%d' title='Del Thread'>&#128640;</a>"
                         "<a class='wp-btn' href='/rename/%s'>"STRING_ADMIN_DEL_IMG"</a>"
                         "<a class='wp-btn' href='/list/ip/%s'>"STRING_ADMIN_LIST_IP"</a>"
                         "<a class='wp-btn' href='/ban/ip/%s'>"STRING_ADMIN_BAN_IP"</a>"
@@ -283,7 +293,7 @@ void requestAdminConsole(mg_connection* conn, struct Thread* r){
                         "<a class='wp-btn' href='/list/%s'>"STRING_ADMIN_LIST_ID"</a>"
                         "<a class='wp-btn' href='/ban/%s'>"STRING_ADMIN_BAN_ID"</a>"
                         "<a class='wp-btn' href='/state/%d/%d'>"STRING_ADMIN_RESTORE"</a>"
-                        "]</span>",
+                        "</span>",
                         r->threadID, r->threadID, r->threadID, r->imgSrc, 
                         r->email, r->email, r->email,
                         r->ssid, r->ssid,
@@ -678,7 +688,7 @@ void postSomething(mg_connection* conn, const char* uri){
     if (strstr(var3, "delete")){
         cclong id = extractLastNumber(conn);
         struct Thread * t = readThread_(pDb, id); //what he replies to is which he wants to delete
-        userDeleteThread(conn, id, verifyAdmin(conn));
+        userDeleteThread(conn, id, admin_ctrl);
         return;
     }
     if (strstr(var3, "list")){
@@ -699,8 +709,9 @@ void postSomething(mg_connection* conn, const char* uri){
         struct Thread * t = readThread_(pDb, id); //what admin replies to is which he wants to update
         //note the server doesn't filter the special chars such as "<" and ">"
         //so it's possible for admin to use HTML here
-        writeString(pDb, t->content, var2, true); 
-        printMsg(conn, "Updated successfully");
+        string up_str = replaceAll(string(var2), string("\n"), string("<br>"));
+        writeString(pDb, t->content, up_str.c_str(), true); 
+        printMsg(conn, "Thread No.%d updated successfully", t->threadID);
         logLog("Admin Edited Thread No.%d", t->threadID);
         return;
     }
@@ -838,7 +849,7 @@ void postSomething(mg_connection* conn, const char* uri){
         else{
             newReply(pDb, id, tmpcontent.c_str(), var1, cip, username, var4, sage);
             
-            mg_printf(conn, "HTTP/1.1 301 Moved Permanently\r\nLocation: /success/%s/%d\r\n\r\n", ssid, id);
+            mg_printf(conn, "HTTP/1.1 302 Moved Temporarily\r\nLocation: /success/%s/%d\r\n\r\n", ssid, id);
         }
 
         if(t) delete t;
@@ -846,7 +857,7 @@ void postSomething(mg_connection* conn, const char* uri){
     else{
         newThread(pDb, tmpcontent.c_str(), var1, cip, username, var4, sage);
         //printMsg(conn, "Successfully start a new thread");
-        mg_printf(conn, "HTTP/1.1 301 Moved Permanently\r\nLocation: /success/%s/0\r\n\r\n", ssid);
+        mg_printf(conn, "HTTP/1.1 302 Moved Temporarily\r\nLocation: /success/%s/0\r\n\r\n", ssid);
     }
 }
 
@@ -1137,11 +1148,15 @@ static void sendReply(struct mg_connection *conn) {
     }
     else if (strstr(conn->uri, "/images/")){
         const char *ims = mg_get_header(conn, "If-Modified-Since");
+        const char *inm = mg_get_header(conn, "If-None-Match");
         //logLog("[%s]\n", ims);
         if (ims)
             if (strcmp(ims, "") != 0){
-                //browser should have a cache, since we are running a semi-static imageboard, 
-                //we use cache whatever the situation is.
+                mg_printf(conn, "HTTP/1.1 304 Not Modified\r\n\r\n");
+                return;
+            }
+        if (inm)
+            if (strcmp(inm, "") != 0){
                 mg_printf(conn, "HTTP/1.1 304 Not Modified\r\n\r\n");
                 return;
             }
@@ -1162,8 +1177,11 @@ static void sendReply(struct mg_connection *conn) {
         if (stat(ipath, &st) == 0 && (fp = fopen(ipath, "rb")) != NULL) {
             mg_printf(conn, "HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\n"
                 "Last-Modified: Sat, 31 Jul 1993 00:00:00 GMT\r\n"
-                "Expires: -1\r\n"
-                "Cache-Control: must-revalidate\r\n"
+                "Expires: Tue, 31 Jul 2035 00:00:00 GMT\r\n"
+                // "Cache-Control: must-revalidate\r\n"
+                // "Cache-Control: Public\r\n"
+                "Cache-Control: max-age=2592000\r\n"
+                "ETag: \"placeholder\"\r\n"
                 "Content-Length: %lu\r\n\r\n", (unsigned cclong)st.st_size);
             while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
                 mg_write(conn, buf, n);
