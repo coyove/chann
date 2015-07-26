@@ -208,22 +208,28 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
     else
         snprintf(ref_or_link, 63, "<a href='/thread/%d'>No.%d</a>", r->threadID, r->threadID);
 
-    char display_image[128] = {'\0'};
+    char display_image[256] = {'\0'};
     if (strlen(r->imgSrc) >= 4){
         if(cut_image){
             struct stat st;
             string filename(r->imgSrc);
             stat(("images/" + filename).c_str(), &st);
 
-            snprintf(display_image, 127, "<div class='img'><a href='/images/%s'>["STRING_VIEW_IMAGE" (%d kb)]</a></div>", 
+            snprintf(display_image, 255, "<div class='img'><a href='/images/%s'>["STRING_VIEW_IMAGE" (%d kb)]</a></div>", 
                 r->imgSrc, st.st_size / 1024);
 
         }
         else{
-            if(reply)
-                snprintf(display_image, 127, "<div class='img'><a href='/images/%s'><img class='imgs' src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
-            else
-                snprintf(display_image, 127, "<div class='img'><a href='/images/%s'><img src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
+            // if(reply)
+            snprintf(display_image, 255, 
+                	"<div class='img'>"
+                		"<a id='img-%d' href='javascript:void(0)' onclick='enim(\"img-%d\")'>"
+                			"<img class='%s' src='/images/%s'/>"
+                		"</a>"
+                	"</div>", r->threadID, r->threadID, reply ? "img-s" : "img-n", r->imgSrc);
+            // else
+            //     snprintf(display_image, 255, 
+            //     	"<div class='img'><a href='/images/%s'><img class='imgn' src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
         }
     }
 
