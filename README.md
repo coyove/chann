@@ -11,11 +11,11 @@ cchan目前仍是一个非常早期的预览版本，代码基本不会对运行
 
 编译cchan
 ---------
-~~cchan在`Windows 8.1`和`Visual Studio 2012 Express`下编译通过，若要在Linux平台下编译，请使用64位系统和GCC 4.8以上的版本并运行`./build.sh`。
+~~cchan在`Windows 8.1`和`Visual Studio 2012 Express`下编译通过，若要在Linux平台下编译，请使用64位系统和GCC 4.8以上的版本并运行`./build.sh`。~~
 
-通过修改VS中的`Platform Toolset`为`Visual Studio 2012 - Windows XP (v110_xp)`可以让cchan在`Windows Sever 2003`下运行，但*实测后BUG太多不推荐*。
+~~通过修改VS中的`Platform Toolset`为`Visual Studio 2012 - Windows XP (v110_xp)`可以让cchan在`Windows Sever 2003`下运行，但*实测后BUG太多不推荐*。~~
 
-cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。所以在修改代码时，请*不要输入任何中文*，请*输入中文字符的转义代码*。
+~~cchan前端页面使用UTF-8编码，但cchan本身并不处理UTF的转换。所以在修改代码时，请*不要输入任何中文*，请*输入中文字符的转义代码*。
 [汉字转化unicode编码](http://www.bangnishouji.com/tools/chtounicode.html)~~
 
 目前windows平台上的开发已不再继续，但其中的VS工程文件依旧可以打开。在Linux平台下编译，请使用64位系统和GCC 4.8以上的版本并运行`./build.sh`。
