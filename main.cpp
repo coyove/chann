@@ -65,13 +65,18 @@ void printFooter(mg_connection* conn){
     mg_printf_data(conn, "</body></html>");
 }
 
-void printHeader(mg_connection* conn){
+void printHeader(mg_connection* conn, const char* suffix = ""){
     char * header = readString(pDb, "header");
+    char site_title[128];
+    strcpy(site_title, siteTitle);
+    strcat(site_title, " - ");
+    strcat(site_title, suffix);
+
     if(header){
-        mg_printf_data(conn, html_header, siteTitle, header);
+        mg_printf_data(conn, html_header, site_title, header);
         delete [] header;
     }else
-        mg_printf_data(conn, html_header, siteTitle, siteTitle);
+        mg_printf_data(conn, html_header, site_title, siteTitle);
 }
 
 void printMsg(mg_connection* conn, const char* msg, ...){
@@ -174,19 +179,7 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
 
     char crl[128] = {'\0'}; //, display_ssid[100] = {'\0'}; //, width1[64], width2[32];
     snprintf(crl, 127, show_reply ? "[<a href=\"/thread/%d\">"STRING_REPLY"</a>]" : "", r->threadID); 
-    //a reply thread has an horizontal offset(20px) at left
-    // strcpy(width1, reply ? "<div class='holder'>&gt;&gt;</div>" : "");
-    // strcpy(width2, reply ? "class='thread header' " : "class='thread' ");
-    //display the sage flag
-    // strcpy(sage, (r->state & SAGE_THREAD && !reply) ? "<font color='red'><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></font><br/>" : "");
-    //display the lock flag
-    // strcpy(locked, r->state & LOCKED_THREAD ? "<font color='red'><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></font><br/>" : "");
-    //display the red name
-    // strcpy(display_ssid, (strcmp(r->ssid, "Admin") == 0) ? "<font color='red'>"STRING_ADMIN"</font>" : r->ssid);
-    // if(strcmp(r->ssid, iid) == 0) strcat(display_ssid, "<pox>"STRING_POSTER"</pox>");
-    //display the deleted flag
-    // strcpy(deleted, !(r->state & NORMAL_DISPLAY) ? "<font color='red'><b>&#10006;&nbsp;Deleted</b></font><br/>" : "");
-
+    
     char reply_count[256] = {'\0'};
     if(r->childThread){
         struct Thread* c = readThread_(pDb, r->childThread);
@@ -210,27 +203,34 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
 
     char display_image[256] = {'\0'};
     if (strlen(r->imgSrc) >= 4){
-        if(cut_image){
-            struct stat st;
-            string filename(r->imgSrc);
-            stat(("images/" + filename).c_str(), &st);
+    	string fname(r->imgSrc);
+        
+        if (endsWith(fname, ".jpg") || endsWith(fname, ".gif") || endsWith(fname, ".png")){
+	        if(cut_image){
+	            struct stat st;
+	            stat(("images/" + fname).c_str(), &st);
 
-            snprintf(display_image, 255, "<div class='img'><a href='/images/%s'>["STRING_VIEW_IMAGE" (%d kb)]</a></div>", 
-                r->imgSrc, st.st_size / 1024);
-
-        }
-        else{
-            // if(reply)
-            snprintf(display_image, 255, 
-                	"<div class='img'>"
-                		"<a id='img-%d' href='javascript:void(0)' onclick='enim(\"img-%d\")'>"
-                			"<img class='%s' src='/images/%s'/>"
-                		"</a>"
-                	"</div>", r->threadID, r->threadID, reply ? "img-s" : "img-n", r->imgSrc);
-            // else
-            //     snprintf(display_image, 255, 
-            //     	"<div class='img'><a href='/images/%s'><img class='imgn' src='/images/%s'/></a></div>", r->imgSrc, r->imgSrc);
-        }
+	            snprintf(display_image, 255, 
+	            	"<div class='img'>"
+	            		"<a id='img-%d' href='javascript:void(0)' onclick='exim(\"img-%d\",\"%s\")'>["STRING_VIEW_IMAGE" (%d kb)]</a>"
+	            	"</div>", 
+	                r->threadID, r->threadID, r->imgSrc, st.st_size / 1024);
+	        }
+	        else{
+	            // if(reply)
+	            snprintf(display_image, 255, 
+	                	"<div class='img'>"
+	                		"<a id='img-%d' href='javascript:void(0)' onclick='enim(\"img-%d\")'>"
+	                			"<img class='%s' src='/images/%s'/>"
+	                		"</a>"
+	                	"</div>", r->threadID, r->threadID, reply ? "img-s" : "img-n", r->imgSrc);
+	        }
+	    }else{
+	    	snprintf(display_image, 255, 
+	            	"<div class='img file'>"
+	            		"<a class='wp-btn' href='/images/%s'>"STRING_VIEW_FILE"</a>"
+	            	"</div>", r->imgSrc);
+	    }
     }
 
     char admin_ctrl[128] = {'\0'};
@@ -561,7 +561,7 @@ void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
 void userListThread(mg_connection* conn, bool admin_view = false){
     char *username = verifyCookie(conn);
 
-    printHeader(conn);
+    printHeader(conn, STRING_MY_POSTS);
     mg_printf_data(conn, "<button class='wp-btn' onclick='cvtm(true);'>&#128198;&nbsp;"STRING_TIMESTAMP_DISPLAY"</button><br>"
             "<small>Example:<span class='tms hiding'>0</span><span class='tmsc'></span></small><hr>");
 
@@ -666,7 +666,10 @@ void postSomething(mg_connection* conn, const char* uri){
             else if (endsWith(sfname, ".png"))
                 ext = ".png";
             else if (endsWith(sfname, ".torrent"))
-                ext = ".xxx";
+                ext = ".dat";
+            else if (admin_ctrl){
+            	ext = sfname.substr(sfname.size() - 4);
+            }
             else{
                 printMsg(conn, STRING_INVALID_FILE);
                 return;
@@ -869,7 +872,16 @@ void postSomething(mg_connection* conn, const char* uri){
 
 void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
     mg_send_header(conn, "charset", "utf-8");
-    printHeader(conn);
+
+    if(indexPage)
+    	printHeader(conn, STRING_PAGE"1");
+    else{
+    	string url(conn->uri);
+		vector<string> tmp = split(url, "/");
+		string num = tmp[tmp.size() - 1];
+		printHeader(conn, (STRING_PAGE + num).c_str());
+    }
+
     mg_printf_data(conn, show_hide_button);
     mg_printf_data(conn, html_form, "/post_thread", "hiding", STRING_NEW_THREAD);
 
@@ -934,7 +946,7 @@ static void sendReply(struct mg_connection *conn) {
         }
         else{
             mg_send_header(conn, "charset", "utf-8");
-            printHeader(conn);
+            printHeader(conn, ("No." + to_string(id)).c_str());
 
             if (pid)
                 mg_printf_data(conn, "<a href='/thread/%d'>&lt;&lt; No.%d</a><hr>", pid, pid);
@@ -1154,41 +1166,51 @@ static void sendReply(struct mg_connection *conn) {
     }
     else if (strstr(conn->uri, "/images/")){
         const char *ims = mg_get_header(conn, "If-Modified-Since");
-        const char *inm = mg_get_header(conn, "If-None-Match");
+        // const char *inm = mg_get_header(conn, "If-None-Match");
         //logLog("[%s]\n", ims);
         if (ims)
             if (strcmp(ims, "") != 0){
                 mg_printf(conn, "HTTP/1.1 304 Not Modified\r\n\r\n");
                 return;
             }
-        if (inm)
-            if (strcmp(inm, "") != 0){
-                mg_printf(conn, "HTTP/1.1 304 Not Modified\r\n\r\n");
-                return;
-            }
+        // if (inm)
+        //     if (strcmp(inm, "") != 0){
+        //         mg_printf(conn, "HTTP/1.1 304 Not Modified\r\n\r\n");
+        //         return;
+        //     }
 
         string url(conn->uri);
         vector<string> tmp = split(url, "/");
+        string fname = tmp[tmp.size() - 1];
+		string ctype;
         char ipath[64];
-        strcpy(ipath, ("images/" + tmp[tmp.size() - 1]).c_str());
+        strcpy(ipath, ("images/" + fname).c_str());
+
+        if (endsWith(fname, ".jpg"))
+            ctype = "image/jpg";
+        else if (endsWith(fname, ".gif"))
+            ctype = "image/gif";
+        else if (endsWith(fname, ".png"))
+            ctype = "image/png";
+        else
+        	ctype = "application/octet-stream";
 
         FILE *fp; struct stat st;
         char buf[1024];
         int n;
 
-        char expire[100];
-        time_t t = time(NULL) + 60 * 60 * 24 * 30;
-        strftime(expire, sizeof(expire), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
+        // char expire[100];
+        // time_t t = time(NULL) + 60 * 60 * 24 * 30;
+        // strftime(expire, sizeof(expire), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
 
         if (stat(ipath, &st) == 0 && (fp = fopen(ipath, "rb")) != NULL) {
-            mg_printf(conn, "HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\n"
-                "Last-Modified: Sat, 31 Jul 1993 00:00:00 GMT\r\n"
-                "Expires: Tue, 31 Jul 2035 00:00:00 GMT\r\n"
-                // "Cache-Control: must-revalidate\r\n"
-                // "Cache-Control: Public\r\n"
-                "Cache-Control: max-age=2592000\r\n"
-                "ETag: \"placeholder\"\r\n"
-                "Content-Length: %lu\r\n\r\n", (unsigned cclong)st.st_size);
+            mg_printf(conn, "HTTP/1.1 200 OK\r\n"
+            				"Content-Type: %s\r\n"
+                			"Last-Modified: Sat, 31 Jul 1993 00:00:00 GMT\r\n"
+                			"Expires: Tue, 31 Jul 2035 00:00:00 GMT\r\n"
+                			// "Cache-Control: must-revalidate\r\n"
+                			"Cache-Control: Public\r\n"
+                			"Content-Length: %lu\r\n\r\n", ctype.c_str(), (unsigned cclong)st.st_size);
             while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
                 mg_write(conn, buf, n);
             }
