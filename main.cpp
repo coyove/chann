@@ -36,12 +36,14 @@ char*   adminPassword;              // * administrator's password
 char    siteTitle[64];              //site's title
 char    md5Salt[64]     = "coyove"; // * MD5 salt
 char    adminCookie[64];            //Admin's cookie
+char    thumbPrefix[64];
 int     threadsPerPage  = 5;        //threads per page to show
 int     postCDTime      = 20;       //cooldown time
 int     maxFileSize     = 2;        //megabytes
 bool    stopNewcookie   = false;    //stop delivering new cookies
 bool    stopCheckIP     = false;    //stop checking ip
 bool    useXFF          = false;
+bool    useThumb        = false;
 FILE*   log_file;                   //log file
 
 char                    banListPath[64];//file to store ip ban list
@@ -143,7 +145,7 @@ unsigned long readMemusage(){
 void doThread(mg_connection* conn, cclong tid, char STATE){
     struct Thread* t = readThread_(pDb, tid);
 
-    if(findParent(pDb, tid) == 0){
+    if(findParent(pDb, t) == 0){
         changeState(t, STATE, !(t->state & STATE));
     
         writeThread(pDb, tid, t, true);
@@ -151,6 +153,8 @@ void doThread(mg_connection* conn, cclong tid, char STATE){
         logLog("Thread No.%d New State: '%s'", tid, resolveState(t->state));
     }else
         printMsg(conn, "You can't sage or lock a reply");
+
+    delete t;
 }
 
 #define SEND_IS_REPLY           1
@@ -177,8 +181,13 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
     char timetmp[64];
     strftime(timetmp, 64, "%Y-%m-%d %X", timeinfo);
 
-    char crl[128] = {'\0'}; //, display_ssid[100] = {'\0'}; //, width1[64], width2[32];
+    #define THREAD_ID ,_N(r->threadID),
+    #define THREAD_IMAGE ,r->imgSrc,
+
+    char crl[128] = {'\0'}; 
     snprintf(crl, 127, show_reply ? "[<a href=\"/thread/%d\">"STRING_REPLY"</a>]" : "", r->threadID); 
+    // if(show_reply)
+    // 	BEGIN_STRING(crl), "[<a href='/thread/"THREAD_ID"'>"STRING_REPLY"</a>]", END_STRING;
     
     char reply_count[256] = {'\0'};
     if(r->childThread){
@@ -198,8 +207,10 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
     char ref_or_link[64] = {'\0'};
     if(show_reply)
         snprintf(ref_or_link, 63, "<a href='javascript:qref(%d)'>No.%d</a>", r->threadID, r->threadID);
+        // BEGIN_STRING(ref_or_link), "<a href='javascript:qref("THREAD_ID")'>No."THREAD_ID"</a>", END_STRING;
     else
         snprintf(ref_or_link, 63, "<a href='/thread/%d'>No.%d</a>", r->threadID, r->threadID);
+        // BEGIN_STRING(ref_or_link), "<a href='/thread/"THREAD_ID"'>No."THREAD_ID"</a>", END_STRING;
 
     char display_image[256] = {'\0'};
     if (strlen(r->imgSrc) >= 4){
@@ -217,25 +228,28 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
 	                r->threadID, r->threadID, r->imgSrc, st.st_size / 1024);
 	        }
 	        else{
-	            // if(reply)
 	            snprintf(display_image, 255, 
 	                	"<div class='img'>"
-	                		"<a id='img-%d' href='javascript:void(0)' onclick='enim(\"img-%d\")'>"
-	                			"<img class='%s' src='/images/%s'/>"
+	                		"<a id='img-%d' href='javascript:void(0)' onclick=\"enim('img-%d','/images/%s','%s%s')\">"
+	                			"<img class='%s' src='%s%s'/>"
 	                		"</a>"
-	                	"</div>", r->threadID, r->threadID, reply ? "img-s" : "img-n", r->imgSrc);
+	                	"</div>", 
+                        r->threadID, r->threadID, r->imgSrc, thumbPrefix, r->imgSrc,
+                        reply ? "img-s" : "img-n", thumbPrefix, r->imgSrc);
 	        }
-	    }else{
+	    }else
 	    	snprintf(display_image, 255, 
 	            	"<div class='img file'>"
 	            		"<a class='wp-btn' href='/images/%s'>"STRING_VIEW_FILE"</a>"
 	            	"</div>", r->imgSrc);
-	    }
     }
 
     char admin_ctrl[128] = {'\0'};
     if(admin_view)
         snprintf(admin_ctrl, 127, "&nbsp;<span id='admin-%d'><a class='wp-btn' onclick='javascript:admc(%d)'>%s</a></span>", r->threadID, r->threadID, r->email);
+     //    BEGIN_STRING(admin_ctrl),
+    	// 	"&nbsp;<span id=admin-"THREAD_ID"><a class=wp-btn onclick=javascript:admc("THREAD_ID")>",r->email,"</a></span>",
+    	// END_STRING;
 
     //if the content is too cclong to display
     char c_content[1050] = {'\0'};
@@ -938,7 +952,8 @@ static void sendReply(struct mg_connection *conn) {
     }
     else if (strstr(conn->uri, "/thread/")){
         cclong id = extractLastNumber(conn);
-        cclong pid = findParent(pDb, id);
+        struct Thread* t = readThread_(pDb, id);
+        cclong pid = findParent(pDb, t);
 
         if (pid == -1 && !verifyAdmin(conn)){
             printMsg(conn, STRING_THREAD_DELETED);
@@ -946,7 +961,7 @@ static void sendReply(struct mg_connection *conn) {
         }
         else{
             mg_send_header(conn, "charset", "utf-8");
-            printHeader(conn, ("No." + to_string(id)).c_str());
+            printHeader(conn, ("No." + to_string(id) + " " + string(t->author)).c_str());
 
             if (pid)
                 mg_printf_data(conn, "<a href='/thread/%d'>&lt;&lt; No.%d</a><hr>", pid, pid);
@@ -957,6 +972,8 @@ static void sendReply(struct mg_connection *conn) {
 
             printFooter(conn);
         }   //view a thread and its replies
+
+        delete t;
     }
     else if (strstr(conn->uri, "/api/")){
         cclong id = extractLastNumber(conn);
@@ -1031,6 +1048,8 @@ static void sendReply(struct mg_connection *conn) {
             t->state = newstate;
             writeThread(pDb, t->threadID, t, true);
             printMsg(conn, "Thread's state updated successfully");
+
+            delete t;
         }else{
             printMsg(conn, STRING_NO_PERMISSION);
             checkIP(conn, true);
@@ -1046,6 +1065,8 @@ static void sendReply(struct mg_connection *conn) {
             printMsg(conn, STRING_NO_PERMISSION);
             checkIP(conn, true);
         }       //delete a thread
+
+        delete t;
     }
     else if (strstr(conn->uri, "/sage/")){
         if (verifyAdmin(conn))
@@ -1187,7 +1208,7 @@ static void sendReply(struct mg_connection *conn) {
         strcpy(ipath, ("images/" + fname).c_str());
 
         if (endsWith(fname, ".jpg"))
-            ctype = "image/jpg";
+            ctype = "image/jpeg";
         else if (endsWith(fname, ".gif"))
             ctype = "image/gif";
         else if (endsWith(fname, ".png"))
@@ -1299,6 +1320,7 @@ int main(int argc, char *argv[]){
     unqlite_util_random_string(pDb, adminPassword, 10); adminPassword[10] = 0;
     strcpy(adminCookie, adminPassword);
     strcpy(banListPath, "ipbanlist");
+    strcpy(thumbPrefix, "/images/");
 
     for (int i = 0; i < argc; ++i){
         if(TEST_ARG("--reset", "-r"))           { logLog("Database: [New Profile]"); resetDatabase(pDb); }
@@ -1308,6 +1330,7 @@ int main(int argc, char *argv[]){
         if(TEST_ARG("--salt", "-m"))            { strncpy(md5Salt,       argv[++i], 64); continue; }
         if(TEST_ARG("--admin-cookie","-A"))     { strncpy(adminCookie,   argv[++i], 64); continue; }
         if(TEST_ARG("--ban-list", "-b"))        { strncpy(banListPath,   argv[++i], 64); continue; }
+        if(TEST_ARG("--use-thumb", "-S"))       { strncpy(thumbPrefix,   argv[++i], 64); continue; }
         if(TEST_ARG("--tpp", "-T"))             { threadsPerPage =  atoi(argv[++i]);    continue; }
         if(TEST_ARG("--cd-time", "-c"))         { postCDTime =      atoi(argv[++i]);    continue; }
         if(TEST_ARG("--max-image-size", "-I"))  { maxFileSize =     atoi(argv[++i]);    continue; }
