@@ -43,7 +43,7 @@ int     maxFileSize     = 2;        //megabytes
 bool    stopNewcookie   = false;    //stop delivering new cookies
 bool    stopCheckIP     = false;    //stop checking ip
 bool    useXFF          = false;
-bool    useThumb        = false;
+bool    archiveMode     = false;
 FILE*   log_file;                   //log file
 
 char                    banListPath[64];//file to store ip ban list
@@ -71,6 +71,7 @@ void printHeader(mg_connection* conn, const char* suffix = ""){
     char * header = readString(pDb, "header");
     char site_title[128];
     strcpy(site_title, siteTitle);
+    if(archiveMode) strcat(site_title, "::"STRING_ARCHIVE);
     strcat(site_title, " - ");
     strcat(site_title, suffix);
 
@@ -167,7 +168,7 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
     if (!(r->state & NORMAL_DISPLAY) && !admin_view) return;
 
     struct tm * timeinfo;
-    char tmp[65536] = {'\0'};
+    char tmp[8192] = {'\0'};
     timeinfo = localtime(&(r->date));
     int len;
 
@@ -184,21 +185,22 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
     #define THREAD_ID ,_N(r->threadID),
     #define THREAD_IMAGE ,r->imgSrc,
 
-    char crl[128] = {'\0'}; 
-    snprintf(crl, 127, show_reply ? "[<a href=\"/thread/%d\">"STRING_REPLY"</a>]" : "", r->threadID); 
-    // if(show_reply)
-    // 	BEGIN_STRING(crl), "[<a href='/thread/"THREAD_ID"'>"STRING_REPLY"</a>]", END_STRING;
+    char crl[128] = {'\0'};
+    if(archiveMode)
+        snprintf(crl, 127, show_reply ? "[<a href=\"/thread/%d\">"STRING_VIEW"</a>]" : "", r->threadID); 
+    else
+        snprintf(crl, 127, show_reply ? "[<a href=\"/thread/%d\">"STRING_REPLY"</a>]" : "", r->threadID); 
     
     char reply_count[256] = {'\0'};
     if(r->childThread){
         struct Thread* c = readThread_(pDb, r->childThread);
         if(c->childCount > 5 && show_reply && !reply)
             snprintf(reply_count, 255,
-                "<font color='darkcyan'>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES_HIDE"</i></font><br/>", 
+                "<dcyan>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES_HIDE"</i></dcyan><br/>", 
                 c->childCount - 5, crl); 
         else if(!cut_count){
             snprintf(reply_count, 255,
-                "<font color='darkcyan'>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES"</i></font><br/>", 
+                "<dcyan>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES"</i></dcyan><br/>", 
                 c->childCount); 
         }
         delete c;
@@ -265,7 +267,7 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
         		/*image*/
         		"%s"
         		/*thread header*/
-        		"%s&nbsp;<font color='#228811'>%s</font>&nbsp;"
+        		"%s&nbsp;<ttt>%s</ttt>&nbsp;"
         		"<span class='tms hiding'>%d</span><span class='tmsc'>%s</span>&nbsp;"
         		"ID:<ssid>%s%s</ssid> %s %s"
         		/*thread comment*/
@@ -283,15 +285,15 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
         display_image, 
         ref_or_link, r->author, 
         r->date, timetmp, 
-        (strcmp(r->ssid, "Admin") == 0) 	? "<font color='red'>"STRING_ADMIN"</font>" : r->ssid, 
+        (strcmp(r->ssid, "Admin") == 0) 	? "<red>"STRING_ADMIN"</red>" : r->ssid, 
         (strcmp(r->ssid, iid) == 0)			? "<pox>"STRING_POSTER"</pox>" : "", 
         crl, admin_ctrl,
         /*do we cut long comment?*/
         cut_cclong 							? c_content : content, 
         /*thread state*/
-        (r->state & SAGE_THREAD && !reply) 	? "<font color='red'><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></font><br/>" : "", 
-        (r->state & LOCKED_THREAD) 			? "<font color='red'><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></font><br/>" : "", 
-        !(r->state & NORMAL_DISPLAY) 		? "<font color='red'><b>&#10006;&nbsp;"STRING_THREAD_DELETED"</b></font><br/>" : "",
+        (r->state & SAGE_THREAD && !reply) 	? "<red><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></red><br/>" : "", 
+        (r->state & LOCKED_THREAD) 			? "<red><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></red><br/>" : "", 
+        !(r->state & NORMAL_DISPLAY) 		? "<red><b>&#10006;&nbsp;"STRING_THREAD_DELETED"</b></red><br/>" : "",
         /*reply count*/
         reply_count);
 
@@ -512,7 +514,7 @@ void showThread(mg_connection* conn, cclong id){
     char zztmp[512];
     int len = sprintf(zztmp, "/post_reply/%d", id); zztmp[len] = 0;
 
-    mg_printf_data(conn, html_form, zztmp, "postform", STRING_REPLY_TO_THREAD);
+    if(!archiveMode) mg_printf_data(conn, html_form, zztmp, "postform", STRING_REPLY_TO_THREAD);
         
     if (r->childThread) {
         cclong r_childThread = r->childThread;
@@ -590,7 +592,7 @@ void userListThread(mg_connection* conn, bool admin_view = false){
 
             if(strcmp(username, t->ssid) == 0 || admin_view)
                 //sendThread(conn, t, true, false, true, true, false);
-                sendThread(conn, t, SEND_IS_REPLY + SEND_CUT_LONG_COMMENT + SEND_CUT_IMAGE, false);
+                sendThread(conn, t, SEND_IS_REPLY + SEND_CUT_LONG_COMMENT + SEND_CUT_IMAGE, admin_view);
 
             if(t) delete t;
         }
@@ -607,7 +609,7 @@ void userListThread(mg_connection* conn, bool admin_view = false){
 }
 
 void postSomething(mg_connection* conn, const char* uri){
-    char var1[64] = {'\0'}, var2[32768] = {'\0'}, var3[64] = {'\0'}, var4[16] = {'\0'};
+    char var1[64] = {'\0'}, var2[4096] = {'\0'}, var3[64] = {'\0'}, var4[16] = {'\0'};
     bool sage = false;
     bool fileAttached = false;
     bool user_delete = false;
@@ -617,6 +619,7 @@ void postSomething(mg_connection* conn, const char* uri){
 
     //first check the ip
     if(!checkIP(conn)) return;
+    if(archiveMode) return;
     bool admin_ctrl = verifyAdmin(conn);
     //get the post form data
     char dump_name[12];
@@ -652,7 +655,7 @@ void postSomething(mg_connection* conn, const char* uri){
         }
 
         if (strcmp(var_name, "input_content") == 0) { //var2: the comment
-            data_len = data_len > 32767 ? 32767 : data_len;
+            data_len = data_len > 4095 ? 4095 : data_len;
             strncpy(var2, data, data_len);
             var2[data_len] = 0;
         }
@@ -853,7 +856,7 @@ void postSomething(mg_connection* conn, const char* uri){
             }
         }
         if (startsWith(imageDetector[i], "&gt;"))
-                    imageDetector[i] = "<font color='#789922'>" + imageDetector[i] + "</font>";
+                    imageDetector[i] = "<ttt>" + imageDetector[i] + "</ttt>";
         if(refFlag)
             tmpcontent += imageDetector[i];
         else
@@ -885,7 +888,9 @@ void postSomething(mg_connection* conn, const char* uri){
 }
 
 void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
-    mg_send_header(conn, "charset", "utf-8");
+    // mg_printf(conn, "charset", "utf-8");
+    // mg_printf(conn, "HTTP/1.1 200 OK\r\n");
+    // mg_printf(conn, "Content-Type: text/html\r\n");
 
     if(indexPage)
     	printHeader(conn, STRING_PAGE"1");
@@ -896,8 +901,10 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
 		printHeader(conn, (STRING_PAGE + num).c_str());
     }
 
-    mg_printf_data(conn, show_hide_button);
-    mg_printf_data(conn, html_form, "/post_thread", "hiding", STRING_NEW_THREAD);
+    if(!archiveMode){
+        mg_printf_data(conn, show_hide_button);
+        mg_printf_data(conn, html_form, "/post_thread", "hiding", STRING_NEW_THREAD);
+    }
 
     if(indexPage)
         showThreads(conn, 1, threadsPerPage);
@@ -941,6 +948,8 @@ static void sendReply(struct mg_connection *conn) {
         //renewCookie(conn, username);
         setCookie(conn, tmp[tmp.size() - 2].c_str());
         mg_send_header(conn, "charset", "utf-8");
+        mg_send_header(conn, "Content-Type", "text/html");
+        mg_send_header(conn, "cache-control", "private, max-age=0");
         
         if(id == 0)
             printMsg(conn, STRING_NEW_THREAD_SUCCESS);
@@ -961,6 +970,8 @@ static void sendReply(struct mg_connection *conn) {
         }
         else{
             mg_send_header(conn, "charset", "utf-8");
+            mg_send_header(conn, "Content-Type", "text/html");
+            mg_send_header(conn, "cache-control", "private, max-age=0");
             printHeader(conn, ("No." + to_string(id) + " " + string(t->author)).c_str());
 
             if (pid)
@@ -1256,6 +1267,16 @@ static void sendReply(struct mg_connection *conn) {
             }
         }       //open/close/destory cookie
     }
+    else if (strstr(conn->uri, "/archive/")){
+        if (verifyAdmin(conn)){
+            archiveMode = strstr(conn->uri, "/open") ? true: false;
+            printMsg(conn, "Your have closed/opened the archive mode");
+            logLog("Archive Mode Closed/Opened");
+        }else{
+            printMsg(conn, STRING_NO_PERMISSION);
+            checkIP(conn, true);
+        }
+    }
     else if (strstr(conn->uri, "/adminconsole/")){
         if (verifyAdmin(conn)){
             cclong id = extractLastNumber(conn);
@@ -1324,6 +1345,7 @@ int main(int argc, char *argv[]){
 
     for (int i = 0; i < argc; ++i){
         if(TEST_ARG("--reset", "-r"))           { logLog("Database: [New Profile]"); resetDatabase(pDb); }
+        if(TEST_ARG("--set-counter", "-C"))     { writecclong(pDb, "global_counter", atoi(argv[++i]), true); }
         if(TEST_ARG("--title", "-t"))           { strncpy(siteTitle,     argv[++i], 64); continue; }
         if(TEST_ARG("--admin-spell", "-a"))     { strncpy(adminPassword, argv[++i], 11); continue; }
         if(TEST_ARG("--port", "-p"))            { strncpy(lport,         argv[++i], 64); continue; }
@@ -1331,12 +1353,13 @@ int main(int argc, char *argv[]){
         if(TEST_ARG("--admin-cookie","-A"))     { strncpy(adminCookie,   argv[++i], 64); continue; }
         if(TEST_ARG("--ban-list", "-b"))        { strncpy(banListPath,   argv[++i], 64); continue; }
         if(TEST_ARG("--use-thumb", "-S"))       { strncpy(thumbPrefix,   argv[++i], 64); continue; }
-        if(TEST_ARG("--tpp", "-T"))             { threadsPerPage =  atoi(argv[++i]);    continue; }
-        if(TEST_ARG("--cd-time", "-c"))         { postCDTime =      atoi(argv[++i]);    continue; }
-        if(TEST_ARG("--max-image-size", "-I"))  { maxFileSize =     atoi(argv[++i]);    continue; }
+        if(TEST_ARG("--tpp", "-T"))             { threadsPerPage =  atoi(argv[++i]);     continue; }
+        if(TEST_ARG("--cd-time", "-c"))         { postCDTime =      atoi(argv[++i]);     continue; }
+        if(TEST_ARG("--max-image-size", "-I"))  { maxFileSize =     atoi(argv[++i]);     continue; }
         if(TEST_ARG("--stop-cookie", "-s"))     stopNewcookie = true;
         if(TEST_ARG("--stop-ipcheck", "-i"))    stopCheckIP = true;
         if(TEST_ARG("--xff-ip", "-x"))          useXFF = true;
+        if(TEST_ARG("--archive", "-Z"))         archiveMode = true;
     }
 
     logLog("Site Title: '%s' -> Admin Password: '%s'", siteTitle, adminPassword);

@@ -9,6 +9,8 @@
 #define STRING_IMAGE 				"附加图片"
 #define STRING_POST_BUTTON 			"送出"
 #define STRING_REPLY 				"回复"
+#define STRING_VIEW 				"查看"
+#define STRING_ARCHIVE 				"存档"
 #define STRING_NEW_THREAD 			"发表新串"
 #define STRING_REPLY_TO_THREAD 		"回复"
 #define STRING_MY_POSTS 			"我的记录"
