@@ -46,6 +46,17 @@ struct Thread{
 	cclong childCount;	// the number of children
 };
 
+struct chatData {
+	int roomID;
+	char chatterSSID[64];
+};
+
+struct History{
+	char chatterSSID[64];	
+	char message[1024] = {0};
+	time_t postTime;
+};
+
 // when use readXXX, remember to destory them
 
 void changeState(struct Thread* t, char statebit, bool op);
@@ -63,7 +74,7 @@ cclong writeNewThread(unqlite *pDb, struct Thread* t, bool autoCommit);
 int writeThread(unqlite *pDb, cclong key, struct Thread* t, bool autoCommit);
 cclong nextCounter(unqlite *pDb);
 int resetDatabase(unqlite *pDb);
-cclong findParent(unqlite *pDb, cclong startID);
+cclong findParent(unqlite *pDb, struct Thread* b);
 int deleteThread(unqlite *pDb, cclong tid);
 int newThread(unqlite *pDb, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega);
 int newReply(unqlite *pDb, cclong id, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega);

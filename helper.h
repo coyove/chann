@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <string>
+#include <cstring>
 #include <vector>
 #include <algorithm>
 #include <time.h>
@@ -18,6 +19,12 @@ extern "C"{
 
 using namespace std;
 
+#define TO_STRING_PLACEHOLDER "%tsp%"
+#define _N(a) TO_STRING_PLACEHOLDER, a
+#define BEGIN_STRING(x) szBuilder(x, sizeof(x)
+#define END_STRING NULL)
+#define _(x) #x
+
 //some c++ string functions to make life easier
 vector<string> split(const string &s, const string &seperator);
 string replaceAll(std::string str, const std::string& from, const std::string& to);
@@ -28,3 +35,4 @@ void cleanString(string& str);
 char* nowNow();
 void Fatal(const char *zMsg);
 void logLog(const char* msg, ...);
+size_t szBuilder(char* buf, size_t buf_size, ...);

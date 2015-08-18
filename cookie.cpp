@@ -2,8 +2,8 @@
 #include "cookie.h"
 #include "helper.h"
 
-extern char* md5_salt;
-extern bool stop_newcookie;
+extern char md5Salt[64];
+extern bool stopNewcookie;
 extern unqlite *pDb;
 extern FILE* log_file;
 
@@ -23,7 +23,7 @@ void setCookie(mg_connection *conn, const char *ssid){
 
 char* generateSSID(const char *user_name) {
 	char *hash = new char[33];
-	mg_md5(hash, user_name, ":", md5_salt, NULL);
+	mg_md5(hash, user_name, ":", md5Salt, NULL);
 
 	return hash;
 }
@@ -48,12 +48,12 @@ void destoryCookie(mg_connection *conn){
 	mg_printf(conn,
 		"HTTP/1.1 200 OK\r\n"
 		"Content-type: text/html\r\n"
-		"Set-Cookie: ssid=\"\"; max-age=0; expire=\"Sat, 31 Jul 1993 00:00:00 GMT\"; path=/; http-only; HttpOnly;\r\n"
+		"Set-Cookie: ssid=\"(none)\"; expires=\"Sat, 31 Jul 1993 00:00:00 GMT\"; path=/; http-only; HttpOnly;\r\n"
 		"Content-Length: 0\r\n");
 }
 
 char* giveNewCookie(mg_connection* conn){
-	if (stop_newcookie) return NULL;
+	if (stopNewcookie) return NULL;
 
 	char *username = new char(10);
 	unqlite_util_random_string(pDb, username, 9);
@@ -82,6 +82,21 @@ char* verifyCookie(mg_connection* conn){
 	char *username = new char[10];
 	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
 	vector<string> zztmp = split(string(ssid), string("|"));
+	if (zztmp.size() != 2) return NULL;
+
+	strncpy(username, zztmp[0].c_str(), 10);
+	char testssid[33];
+	strcpy(testssid, generateSSID(username));
+
+	if (strcmp(testssid, zztmp[1].c_str()) == 0)
+		return username;
+	else
+		return NULL;
+}
+
+char* verifyCookieStr(char* szSSID){
+	char *username = new char[10];
+	vector<string> zztmp = split(string(szSSID), string("|"));
 	if (zztmp.size() != 2) return NULL;
 
 	strncpy(username, zztmp[0].c_str(), 10);

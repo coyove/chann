@@ -1,6 +1,6 @@
 ﻿//unsafe
 #define _CRT_SECURE_NO_WARNINGS
-// #define NS_ENABLE_SSL
+#define NS_ENABLE_SSL
 // #define NS_ENABLE_DEBUG
 
 #include <stdlib.h>
@@ -10,8 +10,10 @@
 #include <vector>
 #include <map>
 #include <unordered_set>
-#include <sys/stat.h>
+#include <deque>
 #include <fstream>
+#include <sys/stat.h>
+#include <signal.h>
 
 extern "C" {
 #include "unqlite.h"
@@ -50,6 +52,9 @@ char                    banListPath[64];//file to store ip ban list
 unordered_set<string>   IDBanList;      //cookie ban list
 unordered_set<string>   IPBanList;      //ip ban list
 map<string, cclong>     IPAccessList;   //remote ip list
+deque<struct History *> chatHistory;
+
+struct mg_server *server;
 
 #define TEST_ARG(b1, b2) (strcmp(argv[i], b1) == 0 || strcmp(argv[i], b2) == 0)
 
@@ -495,10 +500,7 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 void showThread(mg_connection* conn, cclong id){
     clock_t startc = clock();
 
-    if (id <= 0) {
-        printMsg(conn, STRING_INVALID_ID);
-        return;
-    }
+    
     struct Thread *r = readThread_(pDb, id); // get the root thread
     cclong c = 0;
 
@@ -732,11 +734,16 @@ void postSomething(mg_connection* conn, const char* uri){
     //admin trying to update a thread/reply
     if (strstr(var3, "update") && admin_ctrl){
         cclong id = extractLastNumber(conn);
-        struct Thread * t = readThread_(pDb, id); //what admin replies to is which he wants to update
+        struct Thread * t = readThread_(pDb, id); 
+        //what admin replies to is which he wants to update
         //note the server doesn't filter the special chars such as "<" and ">"
         //so it's possible for admin to use HTML here
-        string up_str = replaceAll(string(var2), string("\n"), string("<br>"));
-        writeString(pDb, t->content, up_str.c_str(), true); 
+        if(!strstr(var3, "html")){
+            string up_str = replaceAll(string(var2), string("\n"), string("<br>"));
+            writeString(pDb, t->content, up_str.c_str(), true); 
+        }else
+            writeString(pDb, t->content, var2, true); 
+
         printMsg(conn, "Thread No.%d updated successfully", t->threadID);
         logLog("Admin Edited Thread No.%d", t->threadID);
         return;
@@ -969,9 +976,9 @@ static void sendReply(struct mg_connection *conn) {
             return ;
         }
         else{
-            mg_send_header(conn, "charset", "utf-8");
-            mg_send_header(conn, "Content-Type", "text/html");
-            mg_send_header(conn, "cache-control", "private, max-age=0");
+        //     mg_send_header(conn, "charset", "utf-8");
+        //     mg_send_header(conn, "Content-Type", "text/html");
+        //     mg_send_header(conn, "cache-control", "private, max-age=0");
             printHeader(conn, ("No." + to_string(id) + " " + string(t->author)).c_str());
 
             if (pid)
@@ -979,6 +986,10 @@ static void sendReply(struct mg_connection *conn) {
             else
                 mg_printf_data(conn, "<a href='/'>&lt;&lt; "STRING_HOMEPAGE"</a><hr>");
 
+            if (id < 0) {
+                printMsg(conn, STRING_INVALID_ID);
+                return;
+            }
             showThread(conn, id);
 
             printFooter(conn);
@@ -1294,17 +1305,120 @@ static void sendReply(struct mg_connection *conn) {
     fflush(log_file); // flush the buffer
 }
 
+static void broadcastMessage(struct mg_connection *conn){
+    struct chatData *d = (struct chatData *) conn->connection_param;
+    struct mg_connection *c;
+
+    time_t rawtime;
+    time(&rawtime);
+
+    struct History *h = new History();
+    strcpy(h->chatterSSID, d->chatterSSID);
+
+    cclong len = conn->content_len - 4;
+    len = len > 1023 ? 1023 : len;
+    strncpy(h->message, conn->content + 4, len);
+    h->message[len] = 0;
+
+    h->postTime = rawtime;
+
+    chatHistory.push_front(h);
+    while(chatHistory.size() > 20){
+        struct History *h2 = chatHistory.back();
+        delete h2;
+        chatHistory.pop_back();
+    }
+
+    for (c = mg_next(server, NULL); c != NULL; c = mg_next(server, c)) {
+        struct chatData *d2 = (struct chatData *) c->connection_param;
+        if (!c->is_websocket || d2->roomID != d->roomID) continue;
+        mg_websocket_printf(c, WEBSOCKET_OPCODE_TEXT, "msg %c %.9s %d %.*s",
+                      (char) d->roomID, d->chatterSSID, rawtime, conn->content_len - 4, conn->content + 4);
+    }
+
+    //delete [] bufMessage;
+}
+
+static void webChat(struct mg_connection *conn) {
+    if(!conn->connection_param) return;
+
+    struct chatData *d = (struct chatData *) conn->connection_param;
+
+    char *username = verifyCookieStr(d->chatterSSID);
+    if(!username) return;
+    delete [] username;
+
+    struct mg_connection *c;
+
+  // printf("[%.*s]\n", (int) conn->content_len, conn->content);
+    if (conn->content_len > 5 && !memcmp(conn->content, "join ", 5)) {
+    // Client joined new room
+        d->roomID = conn->content[5];
+    } else if (conn->content_len > 4 && !memcmp(conn->content, "msg ", 4) &&
+             d->roomID != 0 && d->roomID != '?') {
+        broadcastMessage(conn);
+    }
+}
+
 static int eventHandler(struct mg_connection *conn, enum mg_event ev) {
-    if (ev == MG_REQUEST) {
-        sendReply(conn);
-        return MG_TRUE;
+    char *username;
+
+    switch(ev){
+        case MG_REQUEST:
+            if (conn->is_websocket) {
+                webChat(conn);
+                return MG_TRUE;
+            } 
+            else if(strcmp(conn->uri, "/chat") == 0) {
+                mg_send_file(conn, "chat.html", NULL);  // Return MG_MORE after!
+                return MG_MORE;
+            }
+            else{
+                sendReply(conn);
+                return MG_TRUE;
+            }
+        case MG_WS_CONNECT:
+            username = verifyCookie(conn);
+
+            // if (username){
+            char ssid[64];
+            mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 64);
+
+            conn->connection_param = new chatData();
+            strcpy(((struct chatData *)conn->connection_param)->chatterSSID, ssid);
+
+            if(username){
+                mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "id %s", username);
+                delete [] username;
+                
+            }else
+                mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "id (null)");
+            
+            if(chatHistory.size() > 0)
+                    // for(auto i = chatHistory.size() - 1; i >= 0; i--){
+                for(auto i = 0; i < chatHistory.size(); ++i){
+                    mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "history %d %.9s %s", 
+                        chatHistory[i]->postTime, chatHistory[i]->chatterSSID, chatHistory[i]->message);
+                }
+
+            mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "end history");
+
+            return MG_FALSE;
+        case MG_CLOSE:
+            if (conn->connection_param)
+                delete conn->connection_param;
+            return MG_TRUE;
+        case MG_AUTH:
+            return MG_TRUE;
+        default:
+            return MG_FALSE;
     }
-    else if (ev == MG_AUTH) {
-        return MG_TRUE;
-    }
-    else {
-        return MG_FALSE;
-    }
+}
+
+static int s_signal_received = 0;
+static void signalHandler(int sig_num) {
+  signal(sig_num, signalHandler);  // Reinstantiate signal handler
+  s_signal_received = sig_num;
 }
 
 int main(int argc, char *argv[]){
@@ -1344,22 +1458,22 @@ int main(int argc, char *argv[]){
     strcpy(thumbPrefix, "/images/");
 
     for (int i = 0; i < argc; ++i){
-        if(TEST_ARG("--reset", "-r"))           { logLog("Database: [New Profile]"); resetDatabase(pDb); }
-        if(TEST_ARG("--set-counter", "-C"))     { writecclong(pDb, "global_counter", atoi(argv[++i]), true); }
-        if(TEST_ARG("--title", "-t"))           { strncpy(siteTitle,     argv[++i], 64); continue; }
-        if(TEST_ARG("--admin-spell", "-a"))     { strncpy(adminPassword, argv[++i], 11); continue; }
-        if(TEST_ARG("--port", "-p"))            { strncpy(lport,         argv[++i], 64); continue; }
-        if(TEST_ARG("--salt", "-m"))            { strncpy(md5Salt,       argv[++i], 64); continue; }
-        if(TEST_ARG("--admin-cookie","-A"))     { strncpy(adminCookie,   argv[++i], 64); continue; }
-        if(TEST_ARG("--ban-list", "-b"))        { strncpy(banListPath,   argv[++i], 64); continue; }
-        if(TEST_ARG("--use-thumb", "-S"))       { strncpy(thumbPrefix,   argv[++i], 64); continue; }
-        if(TEST_ARG("--tpp", "-T"))             { threadsPerPage =  atoi(argv[++i]);     continue; }
-        if(TEST_ARG("--cd-time", "-c"))         { postCDTime =      atoi(argv[++i]);     continue; }
-        if(TEST_ARG("--max-image-size", "-I"))  { maxFileSize =     atoi(argv[++i]);     continue; }
-        if(TEST_ARG("--stop-cookie", "-s"))     stopNewcookie = true;
-        if(TEST_ARG("--stop-ipcheck", "-i"))    stopCheckIP = true;
-        if(TEST_ARG("--xff-ip", "-x"))          useXFF = true;
-        if(TEST_ARG("--archive", "-Z"))         archiveMode = true;
+        if(TEST_ARG("--reset",          "-r")) { logLog("Database: [New Profile]"); resetDatabase(pDb); }
+        if(TEST_ARG("--set-counter",    "-C")) { writecclong(pDb, "global_counter", atoi(argv[++i]), true); }
+        if(TEST_ARG("--title",          "-t")) { strncpy(siteTitle,     argv[++i], 64); continue; }
+        if(TEST_ARG("--admin-spell",    "-a")) { strncpy(adminPassword, argv[++i], 11); continue; }
+        if(TEST_ARG("--port",           "-p")) { strncpy(lport,         argv[++i], 64); continue; }
+        if(TEST_ARG("--salt",           "-m")) { strncpy(md5Salt,       argv[++i], 64); continue; }
+        if(TEST_ARG("--admin-cookie",   "-A")) { strncpy(adminCookie,   argv[++i], 64); continue; }
+        if(TEST_ARG("--ban-list",       "-b")) { strncpy(banListPath,   argv[++i], 64); continue; }
+        if(TEST_ARG("--use-thumb",      "-S")) { strncpy(thumbPrefix,   argv[++i], 64); continue; }
+        if(TEST_ARG("--tpp",            "-T")) { threadsPerPage =  atoi(argv[++i]);     continue; }
+        if(TEST_ARG("--cd-time",        "-c")) { postCDTime =      atoi(argv[++i]);     continue; }
+        if(TEST_ARG("--max-image-size", "-I")) { maxFileSize =     atoi(argv[++i]);     continue; }
+        if(TEST_ARG("--stop-cookie",    "-s")) stopNewcookie = true;
+        if(TEST_ARG("--stop-ipcheck",   "-i")) stopCheckIP = true;
+        if(TEST_ARG("--xff-ip",         "-x")) useXFF = true;
+        if(TEST_ARG("--archive",        "-Z")) archiveMode = true;
     }
 
     logLog("Site Title: '%s' -> Admin Password: '%s'", siteTitle, adminPassword);
@@ -1382,7 +1496,7 @@ int main(int argc, char *argv[]){
 
     logLog("IP/ID Ban List: '%s' -> Total: %d/%d", banListPath, IPBanList.size(), IDBanList.size());    
 
-    struct mg_server *server = mg_create_server(NULL, eventHandler);
+    server = mg_create_server(NULL, eventHandler);
 
     mg_set_option(server, "listening_port", lport);
 
@@ -1392,7 +1506,9 @@ int main(int argc, char *argv[]){
 
     time(&gStartupTime);
 
-    for (;;) {
+    signal(SIGTERM, signalHandler);
+    signal(SIGINT, signalHandler);
+    while (s_signal_received == 0) {
         mg_poll_server(server, 1000);
     }
 

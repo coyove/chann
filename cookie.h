@@ -18,3 +18,4 @@ char* giveNewCookie(mg_connection* conn);
 void destoryCookie(mg_connection *conn);
 int renewCookie(mg_connection* conn, const char* username);
 char* verifyCookie(mg_connection* conn);
+char* verifyCookieStr(char* szSSID);

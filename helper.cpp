@@ -5,6 +5,50 @@ using namespace std;
 extern unqlite* pDb;
 extern FILE* log_file;
 
+size_t szBuilder(char* buf, size_t buf_size, ...)
+{
+	va_list arg_ptr;
+	char* arg;
+	va_start(arg_ptr, buf_size);
+	size_t len = strlen(buf);
+	bool num_flag = false;
+	arg = va_arg(arg_ptr, char*);
+
+	while (arg){
+		if (num_flag){
+			cclong ret = va_arg(arg_ptr, cclong);
+			char tmp_long[16] = { 0 };
+			// logLog("%d", ret);
+			sprintf(tmp_long, "%d", ret);
+			arg = tmp_long;
+			num_flag = false;
+		}
+
+		if (strcmp(arg, TO_STRING_PLACEHOLDER) == 0) {
+			num_flag = true;
+			// logLog("flag");
+			continue;
+		}
+
+		len += strlen(arg);
+
+		if (len + 1 > buf_size){
+			size_t tmp = strlen(arg) - (len + 1 - buf_size);
+			strncat(buf, arg, tmp);
+			logLog("Buffer Overflow Detected: '%s'", buf);
+			break;
+		}
+		else
+			strcat(buf, arg);
+
+		arg = va_arg(arg_ptr, char*);
+	}
+	
+	va_end(arg_ptr);
+
+	return len;
+}
+
 char* nowNow(){
 	time_t rawtime;
 	time(&rawtime);

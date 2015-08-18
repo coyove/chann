@@ -55,8 +55,10 @@ int resetDatabase(unqlite *pDb){
 	}
 }
 
-cclong findParent(unqlite *pDb, cclong startID){
-	struct Thread* b = readThread_(pDb, startID);
+// cclong findParent(unqlite *pDb, cclong startID){
+cclong findParent(unqlite *pDb, struct Thread* b){
+	// struct Thread* b = readThread_(pDb, startID);
+	cclong startID = b->threadID;
 	if (!(b->state & NORMAL_DISPLAY)) return -1;
 	if (b->state & MAIN_THREAD) return 0;
 	if (b->parentThread) return b->parentThread;
