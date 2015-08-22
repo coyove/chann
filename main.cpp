@@ -42,6 +42,7 @@ char    thumbPrefix[64];
 int     threadsPerPage  = 5;        //threads per page to show
 int     postCDTime      = 20;       //cooldown time
 int     maxFileSize     = 2;        //megabytes
+int     autoLockThread  = 1000;
 bool    stopNewcookie   = false;    //stop delivering new cookies
 bool    stopCheckIP     = false;    //stop checking ip
 bool    useXFF          = false;
@@ -205,8 +206,8 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
                 c->childCount - 5, crl); 
         else if(!cut_count){
             snprintf(reply_count, 255,
-                "<dcyan>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES"</i></dcyan><br/>", 
-                c->childCount); 
+                "<dcyan class='hand' onclick=window.location.href='/thread/%d'>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES"</i></dcyan><br/>", 
+                r->threadID, c->childCount); 
         }
         delete c;
     }
@@ -346,6 +347,7 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
             mg_printf_data(conn, "<script type=\"text/javascript\">"
                 "var elem = document.getElementById('slogan');"
                 "elem.innerText = elem.innerHTML;"
+                "document.getElementById('opt').className='';"
                 "</script>");
         delete [] slogan;
     }
@@ -413,6 +415,7 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
             mg_printf_data(conn, "<script type=\"text/javascript\">"
                 "var elem = document.getElementById('slogan');"
                 "elem.innerText = elem.innerHTML;"
+                "document.getElementById('opt').className='';"
                 "</script>");
         delete [] slogan;
     }
@@ -497,7 +500,7 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
     mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
 }
 
-void showThread(mg_connection* conn, cclong id){
+void showThread(mg_connection* conn, cclong id, bool reverse = false){
     clock_t startc = clock();
 
     
@@ -513,8 +516,11 @@ void showThread(mg_connection* conn, cclong id){
     char iid[10];
     strcpy(iid, r->ssid);
 
-    char zztmp[512];
+    char zztmp[512] = {0};
     int len = sprintf(zztmp, "/post_reply/%d", id); zztmp[len] = 0;
+
+    mg_printf_data(conn, "<a class='wp-btn' href='/%s/%d'>%s</a><br>", 
+                reverse ? "thread" : "daerht", id, reverse ? STRING_VIEW_ASCEND : STRING_VIEW_DESCEND);
 
     if(!archiveMode) mg_printf_data(conn, html_form, zztmp, "postform", STRING_REPLY_TO_THREAD);
         
@@ -526,25 +532,46 @@ void showThread(mg_connection* conn, cclong id){
         cclong rid = r->threadID; //the ID
         bool too_many_replies = (r->childCount > 20);
 
-        //sendThread(conn, r , true, true, false, false, admin_view, iid);
-        sendThread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid);
-
         int di = 1;
-        while (r->nextThread != rid){
-            cclong r_nextThread = r->nextThread;
+
+        if(reverse){
+            cclong n_rid = r->prevThread;
             delete r;
+            r = readThread_(pDb, n_rid);
 
-            r = readThread_(pDb, r_nextThread);
-            di++;
+            sendThread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid);
 
-            //sendThread(conn, r, true, true, false, too_many_replies && (di > 20), admin_view, iid);
-            if(too_many_replies && (di > 20))
-                sendThread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK + SEND_CUT_IMAGE, admin_view, iid);
-            else
-                sendThread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid);
-        }
+            while (r->prevThread != n_rid){
+                di++;
+                cclong r_prevThread = r->prevThread;
 
-        if(r) delete r;
+                delete r;
+                r = readThread_(pDb, r_prevThread);
+
+                if(too_many_replies && (di > 20))
+                    sendThread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK + SEND_CUT_IMAGE, admin_view, iid);
+                else
+                    sendThread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid);
+            }
+        }else{
+            sendThread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid);
+
+            while (r->nextThread != rid){
+                cclong r_nextThread = r->nextThread;
+                delete r;
+
+                r = readThread_(pDb, r_nextThread);
+                di++;
+
+                //sendThread(conn, r, true, true, false, too_many_replies && (di > 20), admin_view, iid);
+                if(too_many_replies && (di > 20))
+                    sendThread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK + SEND_CUT_IMAGE, admin_view, iid);
+                else
+                    sendThread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid);
+            }
+
+            if(r) delete r;
+        } 
     }
     /*else{
         mg_printf_data(conn, "<i>no reply yet</i><hr>", r->childCount);
@@ -877,6 +904,21 @@ void postSomething(mg_connection* conn, const char* uri){
         cclong id = extractLastNumber(conn);
         struct Thread* t = readThread_(pDb, id);
 
+        if(t->state & TOOMANY_REPLIES){
+            printMsg(conn, STRING_NO_REPLY_TO_TOOMANY, autoLockThread);
+            delete t;
+            return;
+        }
+
+        if(t->childThread){
+            struct Thread* tc = readThread_(pDb, t->childThread);
+            if(tc->childCount >= autoLockThread - 1){
+                changeState(t, TOOMANY_REPLIES, true);
+                writeThread(pDb, t->threadID, t, true);
+            }
+            delete tc;            
+        }
+
         if(t->state & LOCKED_THREAD)
             printMsg(conn, STRING_NO_REPLY_TO_LOCKED);
         else{
@@ -966,7 +1008,7 @@ static void sendReply(struct mg_connection *conn) {
             printFooter(conn);
         }   //post successfully page
     }
-    else if (strstr(conn->uri, "/thread/")){
+    else if (strstr(conn->uri, "/thread/") || strstr(conn->uri, "/daerht/")){
         cclong id = extractLastNumber(conn);
         struct Thread* t = readThread_(pDb, id);
         cclong pid = findParent(pDb, t);
@@ -978,7 +1020,11 @@ static void sendReply(struct mg_connection *conn) {
         else{
         //     mg_send_header(conn, "charset", "utf-8");
         //     mg_send_header(conn, "Content-Type", "text/html");
-        //     mg_send_header(conn, "cache-control", "private, max-age=0");
+            if (id < 0) {
+                printMsg(conn, STRING_INVALID_ID);
+                return;
+            }
+
             printHeader(conn, ("No." + to_string(id) + " " + string(t->author)).c_str());
 
             if (pid)
@@ -986,11 +1032,7 @@ static void sendReply(struct mg_connection *conn) {
             else
                 mg_printf_data(conn, "<a href='/'>&lt;&lt; "STRING_HOMEPAGE"</a><hr>");
 
-            if (id < 0) {
-                printMsg(conn, STRING_INVALID_ID);
-                return;
-            }
-            showThread(conn, id);
+            showThread(conn, id, strstr(conn->uri, "/daerht/"));
 
             printFooter(conn);
         }   //view a thread and its replies
@@ -1332,8 +1374,13 @@ static void broadcastMessage(struct mg_connection *conn){
     for (c = mg_next(server, NULL); c != NULL; c = mg_next(server, c)) {
         struct chatData *d2 = (struct chatData *) c->connection_param;
         if (!c->is_websocket || d2->roomID != d->roomID) continue;
-        mg_websocket_printf(c, WEBSOCKET_OPCODE_TEXT, "msg %c %.9s %d %.*s",
-                      (char) d->roomID, d->chatterSSID, rawtime, conn->content_len - 4, conn->content + 4);
+
+        if(strcmp(d->chatterSSID, adminCookie) == 0)
+            mg_websocket_printf(c, WEBSOCKET_OPCODE_TEXT, "msg %c Admin %d %.*s",
+                      (char) d->roomID, rawtime, conn->content_len - 4, conn->content + 4);
+        else
+            mg_websocket_printf(c, WEBSOCKET_OPCODE_TEXT, "msg %c %.9s %d %.*s",
+                      (char) d->roomID, d->chatterSSID, rawtime, len, h->message);
     }
 
     //delete [] bufMessage;
@@ -1394,12 +1441,17 @@ static int eventHandler(struct mg_connection *conn, enum mg_event ev) {
             }else
                 mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "id (null)");
             
-            if(chatHistory.size() > 0)
+            if(chatHistory.size() > 0){
                     // for(auto i = chatHistory.size() - 1; i >= 0; i--){
                 for(auto i = 0; i < chatHistory.size(); ++i){
-                    mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "history %d %.9s %s", 
-                        chatHistory[i]->postTime, chatHistory[i]->chatterSSID, chatHistory[i]->message);
+                    if(strcmp(chatHistory[i]->chatterSSID, adminCookie) == 0)
+                        mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "history %d Admin %s", 
+                        chatHistory[i]->postTime, chatHistory[i]->message);
+                    else
+                        mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "history %d %.9s %s", 
+                            chatHistory[i]->postTime, chatHistory[i]->chatterSSID, chatHistory[i]->message);
                 }
+            }
 
             mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "end history");
 
@@ -1470,6 +1522,7 @@ int main(int argc, char *argv[]){
         if(TEST_ARG("--tpp",            "-T")) { threadsPerPage =  atoi(argv[++i]);     continue; }
         if(TEST_ARG("--cd-time",        "-c")) { postCDTime =      atoi(argv[++i]);     continue; }
         if(TEST_ARG("--max-image-size", "-I")) { maxFileSize =     atoi(argv[++i]);     continue; }
+        if(TEST_ARG("--auto-lock",      "-L")) { autoLockThread =  atoi(argv[++i]);     continue; }
         if(TEST_ARG("--stop-cookie",    "-s")) stopNewcookie = true;
         if(TEST_ARG("--stop-ipcheck",   "-i")) stopCheckIP = true;
         if(TEST_ARG("--xff-ip",         "-x")) useXFF = true;

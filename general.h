@@ -13,6 +13,7 @@ extern "C"{
 #define THREAD_REPLY	2
 #define SAGE_THREAD		16
 #define LOCKED_THREAD	128
+#define TOOMANY_REPLIES 8
 #define NORMAL_DISPLAY	1
 
 #if defined(_WIN32)
@@ -25,7 +26,7 @@ struct Thread{
 	char state;			// thread's state
 	/*
 		1		|1		|1		|1		|1		|1		|1		|1
-		locked	|----	|----	|sage	|----	|thread	|reply	|normal
+		locked	|----	|----	|sage	|toomany|thread	|reply	|normal
 
 		old representation:
 		01101101 = m
