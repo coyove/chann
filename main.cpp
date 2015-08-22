@@ -57,6 +57,8 @@ deque<struct History *> chatHistory;
 
 struct mg_server *server;
 
+#define PRINT_TIME() mg_printf_data(conn,"<div style='text-align:center;color:#888'>Completed in %.3lfs</div>",(float)(endc-startc)/CLOCKS_PER_SEC)
+
 #define TEST_ARG(b1, b2) (strcmp(argv[i], b1) == 0 || strcmp(argv[i], b2) == 0)
 
 const char * getClientIP(mg_connection* conn){
@@ -70,22 +72,22 @@ void printFooter(mg_connection* conn){
         mg_printf_data(conn, "<div id='footer'>%s</div>", footer);
         delete [] footer;
     }
-    mg_printf_data(conn, "</body></html>");
+    mg_printf_data(conn, "</div></body></html>");
 }
 
 void printHeader(mg_connection* conn, const char* suffix = ""){
-    char * header = readString(pDb, "header");
+    // char * header = readString(pDb, "header");
     char site_title[128];
     strcpy(site_title, siteTitle);
     if(archiveMode) strcat(site_title, "::"STRING_ARCHIVE);
     strcat(site_title, " - ");
     strcat(site_title, suffix);
 
-    if(header){
-        mg_printf_data(conn, html_header, site_title, header);
-        delete [] header;
-    }else
-        mg_printf_data(conn, html_header, site_title, siteTitle);
+    // if(header){
+    //     mg_printf_data(conn, html_header, site_title, header);
+    //     delete [] header;
+    // }else
+        mg_printf_data(conn, html_header, site_title);
 }
 
 void printMsg(mg_connection* conn, const char* msg, ...){
@@ -389,7 +391,7 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
     mg_printf_data(conn, "<br/><br/>");
     
     clock_t endc = clock();
-    mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
+    PRINT_TIME();
 }
 
 void showThreads(mg_connection* conn, cclong startID, cclong endID){
@@ -497,7 +499,7 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
     mg_printf_data(conn, "<br/><br/>");
     
     clock_t endc = clock();
-    mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
+    PRINT_TIME();
 }
 
 void showThread(mg_connection* conn, cclong id, bool reverse = false){
@@ -578,7 +580,8 @@ void showThread(mg_connection* conn, cclong id, bool reverse = false){
     }*/
 
     clock_t endc = clock();
-    mg_printf_data(conn, "Completed in %.3lfs<br/>", (float)(endc - startc) / CLOCKS_PER_SEC);
+    // mg_printf_data(conn, "Completed in %.3lfs<br/>", (float)(endc - startc) / CLOCKS_PER_SEC);
+    PRINT_TIME();
 }
 
 void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
@@ -626,7 +629,7 @@ void userListThread(mg_connection* conn, bool admin_view = false){
             if(t) delete t;
         }
         clock_t endc = clock();
-        mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
+        PRINT_TIME();
         printFooter(conn);
 
         if(r) delete r;
@@ -689,9 +692,8 @@ void postSomething(mg_connection* conn, const char* uri){
             var2[data_len] = 0;
         }
 
-        strcpy(var4, "");
-
         if (strcmp(var_name, "input_file") == 0 && strcmp(file_name, "") != 0) {    //var4: the image attached (if has)
+        	// strcpy(var4, "");
             if (data_len > 1024 * 1024 * maxFileSize){
                 printMsg(conn, STRING_FILE_TOO_BIG);
                 return;
@@ -734,7 +736,7 @@ void postSomething(mg_connection* conn, const char* uri){
     }
 
     //logLog("New Thread Before: '%s', '%s', '%s', '%s'", var1, var2, var3, var4);
-
+// logLog("%s", var4);
     //see if there is a SPECIAL string in the text field
     if (strcmp(var1, "") == 0) strcpy(var1, STRING_UNTITLED);
     //user trying to sega a thread/reply
@@ -753,7 +755,7 @@ void postSomething(mg_connection* conn, const char* uri){
     if (strstr(var3, "url")){
         printHeader(conn);
         mg_printf_data(conn, "Image uploaded: <div style='background-color:white; padding: 1em;border: dashed 1px'>"
-            "http://%s:%d/images/%s</div></body></html>", 
+            "http://%s:%d/images/%s</div></div></body></html>", 
             conn->local_ip, conn->local_port, var4);
         logLog("Image Uploaded But Not As New Thread");
         return;
@@ -787,9 +789,10 @@ void postSomething(mg_connection* conn, const char* uri){
     char ipath[64]; FILE *fp; struct stat st;
     sprintf(ipath, "images/%s", var3);
     
-    if (stat(ipath, &st) == 0 && (fp = fopen(ipath, "rb")) != NULL && strcmp(var3, "") != 0)
-        strncpy(var4, var3, 16);
-    else{
+    // 
+    // if (stat(ipath, &st) == 0 && (fp = fopen(ipath, "rb")) != NULL && strcmp(var3, "") != 0)
+        // strncpy(var4, var3, 16);
+    // else{
         //image or comment or both
         if (strcmp(var2, "") == 0 && !fileAttached) {
             printMsg(conn, STRING_EMPTY_COMMENT);
@@ -797,7 +800,7 @@ void postSomething(mg_connection* conn, const char* uri){
         }else if (strcmp(var2, "") == 0 && fileAttached){
             strcpy(var2, STRING_UNCOMMENTED);
         }
-    }
+    // }
     //logLog("addr: %d %d %d %d %d", var1, var2, var3, var4, ipath);
     //verify the cookie
     char ssid[100];//, username[10];
@@ -951,7 +954,7 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
     }
 
     if(!archiveMode){
-        mg_printf_data(conn, show_hide_button);
+        // mg_printf_data(conn, show_hide_button);
         mg_printf_data(conn, html_form, "/post_thread", "hiding", STRING_NEW_THREAD);
     }
 
@@ -970,7 +973,7 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
     mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 9); ssid[9] = 0;
     time_t nn;
     time(&nn);
-    mg_printf_data(conn, "<small>%d.%.3lf.%ld.%s</small>", 
+    mg_printf_data(conn, "<div style='text-align:center;color:#aaa'><small>%d.%.3lf.%ld.%s@cchan</small></div>", 
         stopNewcookie? 0 : 1, difftime(nn, gStartupTime) / 3600, readMemusage() * 4, ssid);
     printFooter(conn);
 }
@@ -1223,7 +1226,7 @@ static void sendReply(struct mg_connection *conn) {
                 if(t) delete t;
             }
             clock_t endc = clock();
-            mg_printf_data(conn, "Completed in %.3lfs<br/>",(float)(endc - startc) / CLOCKS_PER_SEC);
+            PRINT_TIME();
             printFooter(conn);
 
             if(r) delete r;
