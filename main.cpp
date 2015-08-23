@@ -275,9 +275,9 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
         		/*image*/
         		"%s"
         		/*thread header*/
-        		"%s&nbsp;<ttt>%s</ttt>&nbsp;"
+        		"<div class='reply-header'>%s&nbsp;<ttt>%s</ttt>&nbsp;"
         		"<span class='tms hiding'>%d</span><span class='tmsc'>%s</span>&nbsp;"
-        		"ID:<ssid>%s%s</ssid> %s %s"
+        		"ID:<ssid>%s%s</ssid> %s %s</div>"
         		/*thread comment*/
         		"<div class='quote'>%s</div>"
 		        "%s"
@@ -287,7 +287,7 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
         	"</div>"
         "</div>",
         /*place holder*/
-        reply 								? "<div class='holder'>&gt;&gt;</div>" : "", 
+        reply 								? "<div class='holder'>&nbsp;&nbsp;</div>" : "", 
         reply 								? "class='thread header'" : "class='thread'",
         /*image*/
         display_image, 
@@ -369,7 +369,7 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
         if (c == endID + 1) break;
     }
     if(r) delete r;
-    mg_printf_data(conn, "<hr>");
+    mg_printf_data(conn, "<hr><div style='text-align:center;'>");
 
     cclong current_page = endID / threadsPerPage;
 
@@ -387,8 +387,8 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
         }
     }
     mg_printf_data(conn, "<a class='pager' href=\"/gallery/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
-    mg_printf_data(conn, "|<a class='pager' href='/'>&#128193;&nbsp;"STRING_TIMELINE_PAGE"</a>");
-    mg_printf_data(conn, "<br/><br/>");
+    // mg_printf_data(conn, "|<a class='pager' href='/'>&#128193;&nbsp;"STRING_TIMELINE_PAGE"</a>");
+    mg_printf_data(conn, "</div><br/>");
     
     clock_t endc = clock();
     PRINT_TIME();
@@ -474,7 +474,7 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
         if (c == endID + 1) break;
     }
     if(r) delete r;
-    mg_printf_data(conn, "<hr>");
+    mg_printf_data(conn, "<hr><div style='text-align:center;'>");
 
     cclong current_page = endID / threadsPerPage;
 
@@ -495,8 +495,8 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
         }
     }
     mg_printf_data(conn, "<a class='pager' href=\"/page/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
-    mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128193;&nbsp;"STRING_GALLERY_PAGE"</a>");
-    mg_printf_data(conn, "<br/><br/>");
+    // mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128444;&nbsp;"STRING_GALLERY_PAGE"</a>");
+    mg_printf_data(conn, "</div><br/>");
     
     clock_t endc = clock();
     PRINT_TIME();
@@ -1031,9 +1031,9 @@ static void sendReply(struct mg_connection *conn) {
             printHeader(conn, ("No." + to_string(id) + " " + string(t->author)).c_str());
 
             if (pid)
-                mg_printf_data(conn, "<a href='/thread/%d'>&lt;&lt; No.%d</a><hr>", pid, pid);
+                mg_printf_data(conn, "<a href='/thread/%d'>&#171; No.%d</a><hr>", pid, pid);
             else
-                mg_printf_data(conn, "<a href='/'>&lt;&lt; "STRING_HOMEPAGE"</a><hr>");
+                mg_printf_data(conn, "<a href='/'>&#171; "STRING_HOMEPAGE"</a><hr>");
 
             showThread(conn, id, strstr(conn->uri, "/daerht/"));
 
