@@ -175,20 +175,37 @@ void doThread(mg_connection* conn, cclong tid, char STATE){
 void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool admin_view = false, char* iid = ""){
     if (!(r->state & NORMAL_DISPLAY) && !admin_view) return;
 
-    struct tm * timeinfo;
+    struct tm ti; 
+    struct tm today;
     char tmp[8192] = {'\0'};
-    timeinfo = localtime(&(r->date));
     int len;
+
+    localtime_r(&(r->date), &ti);
+    time_t now = time(NULL);  
+    localtime_r(&now, &today);
+
+    char std_time[64];
+    strftime(std_time, 64, " %X", &ti);
+
+    //the date and time
+    char timetmp[64];
+    time_t diff = now - (today.tm_sec + today.tm_min * 60 + today.tm_hour * 3600) - 
+                 (r->date - (ti.tm_sec + ti.tm_min * 60 + ti.tm_hour * 3600));
+    cclong diff_day = diff / 3600 / 24;
+
+    switch(diff_day){
+        case 0: strcpy(timetmp, STRING_TODAY); strcat(timetmp, std_time); break;
+        case 1: strcpy(timetmp, STRING_YESTERDAY); strcat(timetmp, std_time); break;
+        case 2: strcpy(timetmp, STRING_DAY_BEFORE_YESTERDAY); strcat(timetmp, std_time); break;
+        default:
+            strftime(timetmp, 64, "%Y-%m-%d %X", &ti);
+    }
 
     bool reply 		= display_state & SEND_IS_REPLY;
     bool show_reply = display_state & SEND_SHOW_REPLY_LINK;
     bool cut_cclong = display_state & SEND_CUT_LONG_COMMENT;
     bool cut_image 	= display_state & SEND_CUT_IMAGE;
     bool cut_count 	= display_state & SEND_CUT_REPLY_COUNT;
-    
-    //the date and time
-    char timetmp[64];
-    strftime(timetmp, 64, "%Y-%m-%d %X", timeinfo);
 
     #define THREAD_ID ,_N(r->threadID),
     #define THREAD_IMAGE ,r->imgSrc,
@@ -204,11 +221,11 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
         struct Thread* c = readThread_(pDb, r->childThread);
         if(c->childCount > 5 && show_reply && !reply)
             snprintf(reply_count, 255,
-                "<dcyan>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES_HIDE"</i></dcyan><br/>", 
+                "<dcyan>&#128172;&nbsp;"SRTING_THREAD_REPLIES_HIDE"</dcyan><br/>", 
                 c->childCount - 5, crl); 
         else if(!cut_count){
             snprintf(reply_count, 255,
-                "<dcyan class='hand' onclick=window.location.href='/thread/%d'>&#128172;&nbsp;<i>"SRTING_THREAD_REPLIES"</i></dcyan><br/>", 
+                "<dcyan class='hand' onclick=window.location.href='/thread/%d'>&#128172;&nbsp;"SRTING_THREAD_REPLIES"</dcyan><br/>", 
                 r->threadID, c->childCount); 
         }
         delete c;
@@ -267,17 +284,22 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
     strncpy(c_content, content, 1000);
     c_content[1000] = 0;
 
-    if (strlen(content) > 1000) strcat(c_content, "<font color='red'><b>[more]</b></font>");
+    char thread_title[128] = {0};
+    if(reply && strcmp(r->author, STRING_UNTITLED) == 0){}
+    else
+        strcpy(thread_title, r->author);
 
-    len = snprintf(tmp, 65535,
+    if (strlen(content) > 1000) strcat(c_content, "<font color='red'><b>[...]</b></font>");
+
+    len = snprintf(tmp, 8192,
         "<div>%s"
         	"<div %s>"
         		/*image*/
         		"%s"
         		/*thread header*/
         		"<div class='reply-header'>%s&nbsp;<ttt>%s</ttt>&nbsp;"
-        		"<span class='tms hiding'>%d</span><span class='tmsc'>%s</span>&nbsp;"
-        		"ID:<ssid>%s%s</ssid> %s %s</div>"
+        		"<span class='tmsc'><ssid>%s%s</ssid> "STRING_POSTED_AT" %s</span>&nbsp;%s%s"
+        		"</div>"
         		/*thread comment*/
         		"<div class='quote'>%s</div>"
 		        "%s"
@@ -291,11 +313,13 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
         reply 								? "class='thread header'" : "class='thread'",
         /*image*/
         display_image, 
-        ref_or_link, r->author, 
-        r->date, timetmp, 
+        ref_or_link, thread_title, 
+        // reply                               ? "" : "ID:",
         (strcmp(r->ssid, "Admin") == 0) 	? "<red>"STRING_ADMIN"</red>" : r->ssid, 
         (strcmp(r->ssid, iid) == 0)			? "<pox>"STRING_POSTER"</pox>" : "", 
-        crl, admin_ctrl,
+        timetmp, 
+        crl, 
+        admin_ctrl,
         /*do we cut long comment?*/
         cut_cclong 							? c_content : content, 
         /*thread state*/
@@ -610,8 +634,8 @@ void userListThread(mg_connection* conn, bool admin_view = false){
     char *username = verifyCookie(conn);
 
     printHeader(conn, STRING_MY_POSTS);
-    mg_printf_data(conn, "<button class='wp-btn' onclick='cvtm(true);'>&#128198;&nbsp;"STRING_TIMESTAMP_DISPLAY"</button><br>"
-            "<small>Example:<span class='tms hiding'>0</span><span class='tmsc'></span></small><hr>");
+    // mg_printf_data(conn, "<button class='wp-btn' onclick='cvtm(true);'>&#128198;&nbsp;"STRING_TIMESTAMP_DISPLAY"</button><br>"
+            // "<small>Example:<span class='tms hiding'>0</span><span class='tmsc'></span></small><hr>");
 
     if (username){
         struct Thread *r = readThread_(pDb, 0); 
