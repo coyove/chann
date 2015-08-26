@@ -1,4 +1,4 @@
-[English](#CCHAN Anonymous Image Board)
+[English](#cchan-anonymous-image-board)
 
 #cchan 匿名版
 
@@ -35,7 +35,7 @@ CCHAN is an anonymous image board based on [mongoose](https://github.com/cesanta
 
 [Demo](https://waifu.cc/) is hosted on Linode, CentOS 7 x64 running on a single core CPU with 1GB of RAM, the site is using a certificate issued by ssls.com and some browsers may raise SSL warnings.
 
-Compile
+Compile the Server
 ---------
 
 Currently the development on Windows has been deprecated.
@@ -55,3 +55,7 @@ Follow these steps:
 4. Use `--admin-spell XXX` to set a admin's password, it would be a random string if you left it blank.
 5. Use `--port XXX` to set the listening port.
 6. For other commands please refer the source code.
+
+Note on i18n
+---------
+CCHAN is a small server and it compiles fast, inside `./src/lang.h` is the Chinese translation, feel free to add yours and recompile it.
