@@ -2,6 +2,8 @@
 
 #ifdef LANG_CHINESE
 
+#define TIME_FORMAT	"%Y-%m-%d %X"
+
 #define STRING_UNKNOWN_ERROR		"未知错误"
 #define STRING_SUBJECT 				"标题"
 #define STRING_OPTIONS 				"附加选项"

@@ -454,9 +454,10 @@ cclong writeNewThread(unqlite *pDb, struct Thread* t, bool autoCommit){
 	cclong *key = new cclong(nextCounter(pDb));
 	int rc;
 	rc = unqlite_kv_store(pDb, key, 4, t, sizeof(struct Thread));
-	if (rc != UNQLITE_OK)
+	if (rc != UNQLITE_OK){
 		delete key;
 		return 0;
+	}
 	else{
 		if (autoCommit) unqlite_commit(pDb);
 		return *key;

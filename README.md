@@ -27,12 +27,31 @@ cchan是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http:/
 5. 使用命令`--port XXX`设置监听端口。
 6. 其他命令请参考源码。
 
-安全性
------
-本质上讲，cchan除了设置发言间隔时间和ban ID之外，安全性是很低的，尤其是update、slogan、delete、sage、ban、state等操作完全是明文传输，
-为了提高安全性，推荐使用反向代理。
 
-性能
-----
-使用jMeter对[Demo](https://waifu.cc/)站点进行远程测试，本地环境为中国电信10Mbps。
-使用Apache Benchmark对[Demo](https://waifu.cc/)站点进行本地测试。
+CCHAN Anonymous Image Board
+============
+
+CCHAN is an anonymous image board based on [mongoose](https://github.com/cesanta/mongoose) and[unqlite](http://unqlite.org).
+
+[Demo](https://waifu.cc/) is hosted on Linode, CentOS 7 x64 running on a single core CPU with 1GB of RAM, the site is using a certificate issued by ssls.com and some browsers may raise SSL warnings.
+
+Compile
+---------
+
+Currently the development on Windows has been deprecated.
+
+To compile it on Linux, you need a 64bit system with GCC > 4.8.
+
+Run `make & make clean` to compile.
+
+Run `make test` to open a test server listening on 13739 and the admin's password is `111`.
+
+Start the Server
+---------
+Follow these steps:
+
+1. `mkdir images` if not created.
+2. Use `--salt XXX` to set a MD5 salt, its value shall not be changed since then. The length of XXX is 64 at most and you should NEVER make it less than 16 characters.
+4. Use `--admin-spell XXX` to set a admin's password, it would be a random string if you left it blank.
+5. Use `--port XXX` to set the listening port.
+6. For other commands please refer the source code.
