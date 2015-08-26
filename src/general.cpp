@@ -436,13 +436,15 @@ cclong readcclong_(unqlite *pDb, cclong key){
 
 struct Thread* readThread_(unqlite *pDb, cclong key){
 	unqlite_int64 nBytes = sizeof(struct Thread);
-	cclong *k = new cclong(key);
+	// cclong *k = new cclong(key);
+	cclong k = key;
+
 	int rc;
 	struct Thread* zBuf = new Thread();
 
-	rc = unqlite_kv_fetch(pDb, k, 4, zBuf, &nBytes);
-	//if (rc != UNQLITE_OK)
-	//	return 0;
+	rc = unqlite_kv_fetch(pDb, &k, 4, zBuf, &nBytes);
+	
+	// delete k;
 	//even the fetch function failed, we return an empty structure
 
 	return zBuf;
@@ -453,6 +455,7 @@ cclong writeNewThread(unqlite *pDb, struct Thread* t, bool autoCommit){
 	int rc;
 	rc = unqlite_kv_store(pDb, key, 4, t, sizeof(struct Thread));
 	if (rc != UNQLITE_OK)
+		delete key;
 		return 0;
 	else{
 		if (autoCommit) unqlite_commit(pDb);
@@ -461,9 +464,11 @@ cclong writeNewThread(unqlite *pDb, struct Thread* t, bool autoCommit){
 }
 
 int writeThread(unqlite *pDb, cclong key, struct Thread* t, bool autoCommit){
-	cclong *k = new cclong(key);
+	// cclong *k = new cclong(key);
+	cclong k = key;
 	int rc;
-	rc = unqlite_kv_store(pDb, k, 4, t, sizeof(struct Thread));
+	rc = unqlite_kv_store(pDb, &k, 4, t, sizeof(struct Thread));
+
 	if (rc != UNQLITE_OK)
 		return 0;
 	else{

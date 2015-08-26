@@ -1,8 +1,11 @@
 #define _CRT_SECURE_NO_WARNINGS
 
+#ifndef CCHAN_COOKIE_HEADER_INCLUDED
+#define CCHAN_COOKIE_HEADER_INCLUDED
+
 extern "C" {
-#include "unqlite.h"
-#include "mongoose.h"
+#include "../lib/unqlite/unqlite.h"
+#include "../lib/mongoose/mongoose.h"
 }
 
 #include <vector>
@@ -19,3 +22,5 @@ void destoryCookie(mg_connection *conn);
 int renewCookie(mg_connection* conn, const char* username);
 char* verifyCookie(mg_connection* conn);
 char* verifyCookieStr(char* szSSID);
+
+#endif

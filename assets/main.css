@@ -1,0 +1,326 @@
+.header{
+    background:#E2DED7;
+    display:table; 
+    padding: 0.5em;
+    border-radius:5px;
+    overflow: hidden;
+}
+.header:before {
+    content: '◆';
+    color:#CECAC3;
+    position: absolute;
+    margin-left: -15px;
+    z-index: -99;
+    font-size: 30px;
+}
+.wrapper .header div.reply-header{
+    background:#CECAC3;
+    margin: -0.5em;
+    padding: 0.5em;
+    border-radius:5px;
+    border-bottom-left-radius:0;
+    border-bottom-right-radius:0;
+}
+.wrapper .header div.round{
+    border-bottom-left-radius:5px;
+    border-bottom-right-radius:5px;
+}
+.thread {margin: 0.5em; word-break: break-word;}
+.holder {float:left; padding:0.6em; color: #ccc;}
+body{
+    background:#F0EBE4;
+	font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size:14px;
+    font-style:normal;
+    font-variant:normal;
+    font-weight:400;
+    font-stretch:normal;
+    line-height:20px;
+    margin:0;
+    padding:0;
+}
+a.dcyan{color:darkcyan!important; }
+/*a.dcyan:hover{text-decoration: underline;}*/
+a,a:visited{
+    text-decoration:none;
+    color:#21759B;
+}
+ttt,div[class|='div-thread'] a{
+    color:#228811;
+}
+red{
+    color:red;
+}
+dcyan.hand{ cursor: pointer; }
+.pager{
+    margin:3px;
+    padding:5px;
+    background-color:white;
+    border:solid 1px #ccc;
+    line-height:2.5em;
+}
+.pager:hover{
+    background-color:#eee;
+}
+.pager-inv{
+    margin:3px;
+    padding:5px;
+    background-color:#39C;
+    border:solid 1px #ccc;
+    line-height:2.5em;
+    color:white;
+}
+#input-area{
+    margin:0 auto;
+    max-width:500px;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+}
+#input-area div{
+    border:1px solid #ccc;
+    border-bottom: 1px dashed #ddd;
+    border-top-right-radius: 3px;
+    border-top-left-radius: 3px;
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+    background-color: #fafafa;
+    display: block;
+    width:100%;
+    padding:0.2em;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.075);
+}
+#input-area div table tr td input[type=text]{
+    font-family: inherit;
+    font-size:16px;
+    padding:0.2em;
+    border:none;
+    background-color: #fafafa;
+}
+#input-area textarea{
+    font-family: inherit;
+    font-size:16px;
+    border:1px solid #ccc;
+    border-top:none;
+    border-bottom: 1px dashed #ddd;
+    background-color: #fafafa;
+    display: block;
+    min-height:100px;
+    width:100%;
+    padding: 0.6em;
+    resize:vertical;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+}
+#input-area p{
+    background-color: #fafafa;
+    border: 1px solid #ccc;
+    border-top: 0;
+    border-bottom-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    margin:0;
+    padding:0.4em;
+}
+#input-area p select::-ms-expand {
+    display: none;
+}
+select#emoji,select#options{
+    background: transparent;
+    border: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    color: #21759B;
+    font-size:14px;
+    cursor:pointer;
+}
+#input-area p select:hover, #input-area p a:hover {
+    text-decoration: underline;
+}
+.img-n{
+    cursor:-webkit-zoom-in;
+    max-height:250px;max-width:250px;
+    /*height:expression((document.documentElement.clientHeight||document.body.clientHeight)>250?\"250px\":\"\");
+    width:expression((document.documentElement.clientWidth||document.body.clientWidth)>250?\"250px\":\"\");*/
+}
+.img-s{
+    cursor:-webkit-zoom-in;
+    max-height:180px;max-width:180px;
+    /*height:expression((document.documentElement.clientHeight||document.body.clientHeight)>180?\"180px\":\"\");
+    width:expression((document.documentElement.clientWidth||document.body.clientWidth)>180?\"180px\":\"\");*/
+}
+.img-l{
+    width:100%;
+    cursor:-webkit-zoom-out;
+}
+.quote{margin:0.75em;}
+.header .quote{margin-top: 1.2em;}
+div.img{
+    float:left;margin:0.5em;
+    max-height:250px;max-width:250px;
+    /*height:expression((document.documentElement.clientHeight||document.body.clientHeight)>250?\"250px\":\"\");
+    width:expression((document.documentElement.clientWidth||document.body.clientWidth)>250?\"250px\":\"\");*/
+}
+div.file{
+    border: dashed 1px;
+    padding: 1em;
+}
+div.enlarge-s{}
+div.enlarge-n{}
+hr{
+    clear:left;
+    border: dashed 1px #ccc;
+    margin: 1em;
+}
+ssid{
+    font-family:'PT Mono', Consolas, Arial;
+    color: #666;
+}
+.state{
+    background-color:deepskyblue;
+    color:white;
+    padding:0.1em;
+    border-radius:0.3em;
+    font-size:10px;
+}
+#slogan{
+    font-size:12px;
+    margin:0.5em;
+    padding:0.2em;
+    line-height:1.25em;
+}
+.hiding{
+    display:none;
+}
+.tmsc{
+    color: #888;
+}
+.ref{
+    border:dashed 1px;
+    font-size:90%;
+}
+.ref .thread {
+    margin: 0;
+}
+pox{
+    background:cadetblue;
+    color:white;
+    border-radius:0.4em;
+    font-size:0.8em;
+    padding:0em 0.4em;
+    vertical-align:bottom;
+    margin-left:2px;
+}
+.wp-btn{
+    padding:0.4em 0.6em;
+    margin:0.2em;
+    line-height:normal;
+    height:auto;
+    color:#555;
+    border-color:#ccc;
+    background:#f7f7f7;
+    -webkit-box-shadow:inset 0 1px 0 #fff,0 1px 0 rgba(0,0,0,.08);
+    vertical-align:top;
+    display:inline-block;
+    text-decoration:none;
+    cursor:pointer;
+    border-width:1px;
+    border-style:solid;
+    -webkit-appearance:none;
+    -webkit-border-radius:3px;
+    border-radius:3px;
+    white-space:nowrap;
+    -webkit-box-sizing:border-box;
+    -moz-box-sizing:border-box;
+    box-sizing:border-box;
+}
+.wp-btn:active{
+    background:#eee;
+    border-color:#999;
+    color:#333;
+    -webkit-box-shadow:inset 0 2px 5px -3px rgba(0,0,0,.5);
+    box-shadow:inset 0 2px 5px -3px rgba(0,0,0,.5);
+}
+.wp-btn:hover{
+    background:#fafafa;
+    border-color:#999;
+    color:#222;
+}
+span .wp-btn{
+    padding:0.4em;
+    font-size:10px;
+    vertical-align:middle;
+}
+.page-header{
+    background-color: #f5f5f5;
+    border-bottom: solid 1px #ccc;
+    margin:0 auto;
+    max-width:800px;
+    box-shadow: 0 0 8px #ccc;
+}
+.page-header p{
+    padding: 0;
+    margin:0;
+}
+.page-header p a{
+    font-size:150%;
+}
+.page-header p span{
+    cursor:pointer;
+    margin-right:1em;
+}
+.page-header p span:hover{
+    color:#4078c0;
+}
+#header-image:hover{
+    -webkit-filter: sepia(1);
+}
+.wrapper{
+    padding:0.5em;
+    max-width:800px;
+    margin:0 auto;
+}
+
+
+/*alert box css style code authored by: http://jsfiddle.net/joshnh/FxfHc/*/
+.alert-box{
+    margin: -0.5em;
+    margin-top: 0.5em;
+    padding: 0.2em;
+    background-color: #c4453c;
+    background-image: -webkit-linear-gradient(135deg, transparent,
+                      transparent 25%, hsla(0,0%,0%,.05) 25%,
+                      hsla(0,0%,0%,.05) 50%, transparent 50%,
+                      transparent 75%, hsla(0,0%,0%,.05) 75%,
+                      hsla(0,0%,0%,.05));
+    background-image: -moz-linear-gradient(135deg, transparent,
+                      transparent 25%, hsla(0,0%,0%,.1) 25%,
+                      hsla(0,0%,0%,.1) 50%, transparent 50%,
+                      transparent 75%, hsla(0,0%,0%,.1) 75%,
+                      hsla(0,0%,0%,.1));
+    background-image: -ms-linear-gradient(135deg, transparent,
+                      transparent 25%, hsla(0,0%,0%,.1) 25%,
+                      hsla(0,0%,0%,.1) 50%, transparent 50%,
+                      transparent 75%, hsla(0,0%,0%,.1) 75%,
+                      hsla(0,0%,0%,.1));
+    background-image: -o-linear-gradient(135deg, transparent,
+                      transparent 25%, hsla(0,0%,0%,.1) 25%,
+                      hsla(0,0%,0%,.1) 50%, transparent 50%,
+                      transparent 75%, hsla(0,0%,0%,.1) 75%,
+                      hsla(0,0%,0%,.1));
+    background-image: linear-gradient(135deg, transparent,
+                      transparent 25%, hsla(0,0%,0%,.1) 25%,
+                      hsla(0,0%,0%,.1) 50%, transparent 50%,
+                      transparent 75%, hsla(0,0%,0%,.1) 75%,
+                      hsla(0,0%,0%,.1));
+    background-size: 20px 20px;
+    color: white;
+    display: block;
+    text-align: center;
+    text-decoration: none;
+
+}
