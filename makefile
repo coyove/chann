@@ -23,10 +23,6 @@ general.o:
 clean:
 	rm -R *.o
 
-stop:
-	ps aux | grep "deamon" | awk '{system("kill -9 " $$2)}'
-	ps aux | grep "cchan" | awk '{system("kill -9 " $$2)}'
-
 test:
 	./cchan --title "TEST SITE" --admin-spell 111 --tpp 10 --database db/test2.db --port 13739 --salt zhang --stop-ipcheck
 

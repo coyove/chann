@@ -201,7 +201,7 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
         case 1: strcpy(timetmp, STRING_YESTERDAY); strcat(timetmp, std_time); break;
         case 2: strcpy(timetmp, STRING_DAY_BEFORE_YESTERDAY); strcat(timetmp, std_time); break;
         default:
-            strftime(timetmp, 64, "%Y-%m-%d %X", &ti);
+            strftime(timetmp, 64, TIME_FORMAT, &ti);
     }
 
     bool reply 		= display_state & SEND_IS_REPLY;
