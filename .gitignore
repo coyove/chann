@@ -45,3 +45,4 @@ log/*
 db/*
 assets/backups/*
 backup.sh
+.idea
