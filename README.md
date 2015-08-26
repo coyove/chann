@@ -1,4 +1,4 @@
-cchan 匿名版
+#cchan 匿名版
 ============
 
 cchan是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http://unqlite.org)的匿名版服务器。
@@ -28,7 +28,7 @@ cchan是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http:/
 6. 其他命令请参考源码。
 
 
-CCHAN Anonymous Image Board
+#CCHAN Anonymous Image Board
 ============
 
 CCHAN is an anonymous image board based on [mongoose](https://github.com/cesanta/mongoose) and[unqlite](http://unqlite.org).
