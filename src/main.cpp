@@ -16,10 +16,11 @@
 #include <signal.h>
 
 extern "C" {
-#include "unqlite.h"
-#include "mongoose.h"
-#include "templates.h"
+#include "../lib/unqlite/unqlite.h"
+#include "../lib/mongoose/mongoose.h"
 }
+
+#include "templates.h"
 
 #if defined(_WIN32)
 #include <Windows.h>
@@ -60,6 +61,8 @@ struct mg_server *server;
 #define PRINT_TIME() mg_printf_data(conn,"<div style='text-align:center;color:#888'>Completed in %.3lfs</div>",(float)(endc-startc)/CLOCKS_PER_SEC)
 
 #define TEST_ARG(b1, b2) (strcmp(argv[i], b1) == 0 || strcmp(argv[i], b2) == 0)
+
+static const unsigned long long BUILD_DATE = __BUILD_DATE;
 
 const char * getClientIP(mg_connection* conn){
     const char * xff = mg_get_header(conn, "X-Forwarded-For");
@@ -173,7 +176,7 @@ void doThread(mg_connection* conn, cclong tid, char STATE){
 #define SEND_CUT_REPLY_COUNT    16
 
 void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool admin_view = false, char* iid = ""){
-    if (!(r->state & NORMAL_DISPLAY) && !admin_view) return;
+    // if (!(r->state & NORMAL_DISPLAY) && !admin_view) return;
 
     struct tm ti; 
     struct tm today;
@@ -212,23 +215,23 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
 
     char crl[128] = {'\0'};
     if(archiveMode)
-        snprintf(crl, 127, show_reply ? "[<a href=\"/thread/%d\">"STRING_VIEW"</a>]" : "", r->threadID); 
+        snprintf(crl, 127, show_reply ? "[ <a href=\"/thread/%d\">"STRING_VIEW"</a> ]" : "", r->threadID); 
     else
-        snprintf(crl, 127, show_reply ? "[<a href=\"/thread/%d\">"STRING_REPLY"</a>]" : "", r->threadID); 
+        snprintf(crl, 127, show_reply ? "[ <a href=\"/thread/%d\">"STRING_REPLY"</a> ]" : "", r->threadID); 
     
     char reply_count[256] = {'\0'};
     if(r->childThread){
-        struct Thread* c = readThread_(pDb, r->childThread);
-        if(c->childCount > 5 && show_reply && !reply)
+        if(!cut_count){
+            struct Thread* c = readThread_(pDb, r->childThread);
+        // if(c->childCount > 5 && show_reply && !reply)
+        //     snprintf(reply_count, 255,
+        //         "<dcyan>&#128172;&nbsp;"SRTING_THREAD_REPLIES_HIDE"</dcyan><br/>", 
+        //         c->childCount - 5, crl); 
             snprintf(reply_count, 255,
-                "<dcyan>&#128172;&nbsp;"SRTING_THREAD_REPLIES_HIDE"</dcyan><br/>", 
-                c->childCount - 5, crl); 
-        else if(!cut_count){
-            snprintf(reply_count, 255,
-                "<dcyan class='hand' onclick=window.location.href='/thread/%d'>&#128172;&nbsp;"SRTING_THREAD_REPLIES"</dcyan><br/>", 
+                "<a class='dcyan' href='/thread/%d'>&#128172;&nbsp;"SRTING_THREAD_REPLIES"</a><br/>", 
                 r->threadID, c->childCount); 
+            delete c;
         }
-        delete c;
     }
 
     char ref_or_link[64] = {'\0'};
@@ -291,43 +294,63 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
 
     if (strlen(content) > 1000) strcat(c_content, "<font color='red'><b>[...]</b></font>");
 
-    len = snprintf(tmp, 8192,
-        "<div>%s"
-        	"<div %s>"
-        		/*image*/
-        		"%s"
-        		/*thread header*/
-        		"<div class='reply-header'>%s&nbsp;<ttt>%s</ttt>&nbsp;"
-        		"<span class='tmsc'><ssid>%s%s</ssid> "STRING_POSTED_AT" %s</span>&nbsp;%s%s"
-        		"</div>"
-        		/*thread comment*/
-        		"<div class='quote'>%s</div>"
-		        "%s"
-		        "%s"
-		        "%s"
-		        "%s"
-        	"</div>"
-        "</div>",
-        /*place holder*/
-        reply 								? "<div class='holder'>&nbsp;&nbsp;</div>" : "", 
-        reply 								? "class='thread header'" : "class='thread'",
-        /*image*/
-        display_image, 
-        ref_or_link, thread_title, 
-        // reply                               ? "" : "ID:",
-        (strcmp(r->ssid, "Admin") == 0) 	? "<red>"STRING_ADMIN"</red>" : r->ssid, 
-        (strcmp(r->ssid, iid) == 0)			? "<pox>"STRING_POSTER"</pox>" : "", 
-        timetmp, 
-        crl, 
-        admin_ctrl,
-        /*do we cut long comment?*/
-        cut_cclong 							? c_content : content, 
-        /*thread state*/
-        (r->state & SAGE_THREAD && !reply) 	? "<red><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></red><br/>" : "", 
-        (r->state & LOCKED_THREAD) 			? "<red><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></red><br/>" : "", 
-        !(r->state & NORMAL_DISPLAY) 		? "<red><b>&#10006;&nbsp;"STRING_THREAD_DELETED"</b></red><br/>" : "",
-        /*reply count*/
-        reply_count);
+    if (r->state & NORMAL_DISPLAY || admin_view)
+        len = snprintf(tmp, 8192,
+            "<div>%s"
+            	"<div %s>"
+            		/*image*/
+            		"%s"
+            		/*thread header*/
+            		"<div class='reply-header'>%s&nbsp;<ttt>%s</ttt>&nbsp;"
+            		"<span class='tmsc'><ssid>%s%s</ssid> "STRING_POSTED_AT" %s</span>&nbsp;%s%s"
+            		"</div>"
+            		/*thread comment*/
+            		"<div class='quote'>%s</div>"
+    		        "%s"
+    		        "%s"
+    		        "%s"
+    		        "%s"
+            	"</div>"
+            "</div>",
+            /*place holder*/
+            reply 								? "<div class='holder'>&nbsp;&nbsp;</div>" : "", 
+            reply 								? "class='thread header'" : "class='thread'",
+            /*image*/
+            display_image, 
+            ref_or_link, thread_title, 
+            // reply                               ? "" : "ID:",
+            (strcmp(r->ssid, "Admin") == 0) 	? "<red>"STRING_ADMIN"</red>" : r->ssid, 
+            (strcmp(r->ssid, iid) == 0)			? "<pox>"STRING_POSTER"</pox>" : "", 
+            timetmp, 
+            crl, 
+            admin_ctrl,
+            /*do we cut long comment?*/
+            cut_cclong 							? c_content : content, 
+            /*thread state*/
+            (r->state & SAGE_THREAD && !reply) 	? "<red><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></red><br/>" : "", 
+            (r->state & LOCKED_THREAD) 			? "<red><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></red><br/>" : "", 
+            !(r->state & NORMAL_DISPLAY) 		? "<red><b>&#10006;&nbsp;"STRING_THREAD_DELETED"</b></red><br/>" : "",
+            /*reply count*/
+            reply_count);
+    else
+        len = snprintf(tmp, 8192,
+            "<div>%s"
+                "<div %s>"
+                    "<div class='reply-header'>No.%d&nbsp;<ttt>%s</ttt>&nbsp;"
+                    "<span class='tmsc'><ssid>%s%s</ssid> "STRING_POSTED_AT" %s</span>&nbsp;%s"
+                    "</div>"
+                    "<div class='alert-box'>"STRING_THREAD_DELETED2"</div>"
+                "</div>"
+            "</div>",
+            /*place holder*/
+            reply                               ? "<div class='holder'>&nbsp;&nbsp;</div>" : "", 
+            reply                               ? "class='thread header'" : "class='thread'",
+            r->threadID, thread_title, 
+            // reply                               ? "" : "ID:",
+            (strcmp(r->ssid, "Admin") == 0)     ? "<red>"STRING_ADMIN"</red>" : r->ssid, 
+            (strcmp(r->ssid, iid) == 0)         ? "<pox>"STRING_POSTER"</pox>" : "", 
+            timetmp, 
+            admin_ctrl);
 
     mg_send_data(conn, tmp, len);
 
@@ -461,32 +484,95 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
             struct Thread *oldr = r;
 
             if (r->childThread) {
+                struct Thread* first_thread;
+                first_thread = readThread_(pDb, r->childThread); // beginning of the circle
+                r = first_thread;
+
                 vector<struct Thread *> vt;
+                // vector<struct Thread *> vt_next;
 
-                r = readThread_(pDb, r->childThread); // beginning of the circle
-                //vt.push_back(r);
-                //mg_printf_data(conn, "<i>%d reply(s) total</i>", r->childCount);
-
-                r = readThread_(pDb, r->prevThread);
-                cclong rid = r->threadID; //the ID
-                //sendThread(conn, r, true, false);
-                if(r->state & NORMAL_DISPLAY) vt.push_back(r);
-                
-                int counter = 5;
-
-                while (r->prevThread != rid){
-                    //if(--counter == 0) break;
+                int i = 1;
+                while(i <= 4){
                     r = readThread_(pDb, r->prevThread);
-                    if(r->state & NORMAL_DISPLAY){
-                        if(--counter == 0) break;
-                        vt.push_back(r);    
-                    }
+
+                    if(r->threadID != first_thread->threadID) {
+                        vt.push_back(r);
+                        i++;
+                    }else
+                        break;
                 }
 
-                for (int i = vt.size() - 1; i >= 0; i--){
-                    //sendThread(conn, vt[i], true, false, false, false, admin_view, iid);
-                    sendThread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid);
-                    delete vt[i];
+                vt.push_back(first_thread);
+
+                // i = 1; flag = false;
+                // while(i <= 5){
+                //     if(flag){
+                //         flag = false;
+                //         cclong prev_thread = r->prevThread;
+                //         delete r;
+                //         r = readThread_(pDb, prev_thread);
+                //     }else
+                //         r = readThread_(pDb, r->prevThread);
+
+                //     if(r->state & NORMAL_DISPLAY && r->threadID != first_thread->threadID) {
+                //         vt_prev.push_back(r);
+                //         i++;
+                //     }else if(r->threadID == first_thread->threadID)
+                //         break;
+                //     else
+                //         flag = true;
+                // }            
+                // vector<struct Thread *> vt;
+
+                // r = readThread_(pDb, r->childThread); // beginning of the circle
+                // struct Thread *begin_thread = r;
+                // cclong begin_id = r->threadID;
+
+                // r = readThread_(pDb, r->prevThread);
+                // cclong rid = r->threadID; //the ID
+                // //sendThread(conn, r, true, false);
+                // if(r->state & NORMAL_DISPLAY) vt.push_back(r);
+                
+                // int counter = 5;
+
+                // while (r->prevThread != rid){
+                //     //if(--counter == 0) break;
+                //     r = readThread_(pDb, r->prevThread);
+                //     if(r->state & NORMAL_DISPLAY){
+                //         if(--counter == 0) break;
+                //         vt.push_back(r);    
+                //     }
+                // }
+                // if(vt[vt.size() - 1]->threadID != begin_id) {
+                //     sendThread(conn, begin_thread, SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid);
+                //     delete begin_thread;
+
+                //     for (int i = vt.size() - 2; i >= 0; i--){
+                //         sendThread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid);
+                //         delete vt[i];
+                //     }
+                // }
+                // else
+                if(first_thread->childCount <= 5)
+                    for (int i = vt.size() - 1; i >= 0; i--){
+                        sendThread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid);
+                        delete vt[i];
+                    }
+                else{
+                    for (int i = vt.size() - 1; i >= 0; i--){
+                        sendThread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid);
+                        delete vt[i];
+                        if(i == vt.size() - 1)
+                            mg_printf_data(conn, 
+                                "<div>"
+                                    "<div class='holder'>&nbsp;&nbsp;</div>"
+                                    "<div class='header'>"
+                                        "<div class='reply-header round'>"
+                                            "<a class='dcyan' href='/thread/%d'>&#128172;&nbsp;"SRTING_THREAD_REPLIES_HIDE"</a>"
+                                        "</div>"
+                                    "</div>"
+                                "</div>", oldr->threadID, first_thread->childCount - 5);
+                    }
                 }
 
             }
@@ -997,8 +1083,8 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
     mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 9); ssid[9] = 0;
     time_t nn;
     time(&nn);
-    mg_printf_data(conn, "<div style='text-align:center;color:#aaa'><small>%d.%.3lf.%ld.%s@cchan</small></div>", 
-        stopNewcookie? 0 : 1, difftime(nn, gStartupTime) / 3600, readMemusage() * 4, ssid);
+    mg_printf_data(conn, "<div style='text-align:center;color:#aaa;line-height:1em'><small>%d.%ld.%s.%ld</small></div>", 
+        stopNewcookie? 0 : 1, readMemusage() * 4, ssid, BUILD_DATE);
     printFooter(conn);
 }
 
@@ -1071,12 +1157,12 @@ static void sendReply(struct mg_connection *conn) {
         struct Thread *r = readThread_(pDb, id); // get the root thread
         bool admin_view = verifyAdmin(conn);
 
-        if (!(r->state & NORMAL_DISPLAY)){
-            //printMsg(conn, "This thread has been deleted");
-            mg_printf_data(conn, "<Invalid Thread>");
-            return;
-        }
-        else
+        // if (!(r->state & NORMAL_DISPLAY)){
+        //     //printMsg(conn, "This thread has been deleted");
+        //     mg_printf_data(conn, "<Invalid Thread>");
+        //     return;
+        // }
+        // else
             //sendThread(conn, r, false, false, false, false, admin_view);
             sendThread(conn, r, 0, admin_view);
 
@@ -1443,8 +1529,8 @@ static int eventHandler(struct mg_connection *conn, enum mg_event ev) {
                 webChat(conn);
                 return MG_TRUE;
             } 
-            else if(strcmp(conn->uri, "/chat") == 0) {
-                mg_send_file(conn, "chat.html", NULL);  // Return MG_MORE after!
+            else if (strstr(conn->uri, "/assets/")){
+                mg_send_file(conn, conn->uri + 1, "");
                 return MG_MORE;
             }
             else{
@@ -1485,7 +1571,7 @@ static int eventHandler(struct mg_connection *conn, enum mg_event ev) {
             return MG_FALSE;
         case MG_CLOSE:
             if (conn->connection_param)
-                delete conn->connection_param;
+                delete (struct chatData*)conn->connection_param;
             return MG_TRUE;
         case MG_AUTH:
             return MG_TRUE;
@@ -1506,6 +1592,7 @@ int main(int argc, char *argv[]){
     char zPath[64] = "default.db"; 
     log_file = stdout;
 
+    // logLog("%ld", BUILD_DATE);
     for (int i = 0; i < argc; ++i){
         // if(TEST_ARG("--help", "-h")){
         //     puts(help_text);
@@ -1528,6 +1615,12 @@ int main(int argc, char *argv[]){
 
     logLog("Database: '%s'", zPath);
 
+    unqlite_int64 nBytes = 4;
+    cclong dummy = 0;
+
+    if (unqlite_kv_fetch(pDb, "global_counter", -1, &dummy, &nBytes) != UNQLITE_OK)
+        resetDatabase(pDb);
+
     //generate a random admin password
     adminPassword = new char[11];
 
@@ -1537,7 +1630,7 @@ int main(int argc, char *argv[]){
     strcpy(thumbPrefix, "/images/");
 
     for (int i = 0; i < argc; ++i){
-        if(TEST_ARG("--reset",          "-r")) { logLog("Database: [New Profile]"); resetDatabase(pDb); }
+        // if(TEST_ARG("--reset",          "-r")) { logLog("Database: [New Profile]"); resetDatabase(pDb); }
         if(TEST_ARG("--set-counter",    "-C")) { writecclong(pDb, "global_counter", atoi(argv[++i]), true); }
         if(TEST_ARG("--title",          "-t")) { strncpy(siteTitle,     argv[++i], 64); continue; }
         if(TEST_ARG("--admin-spell",    "-a")) { strncpy(adminPassword, argv[++i], 11); continue; }
@@ -1579,7 +1672,7 @@ int main(int argc, char *argv[]){
     server = mg_create_server(NULL, eventHandler);
 
     mg_set_option(server, "listening_port", lport);
-
+    // mg_set_option(server, "document_root", "/");
     logLog("Listening on Port: '%s'", mg_get_option(server, "listening_port"));
 
     fflush(log_file);

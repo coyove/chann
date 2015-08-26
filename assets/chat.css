@@ -1,0 +1,90 @@
+div.system-msg{
+	background-color: darkcyan;
+	color:white;
+	padding:0.2em;
+	font-size: 0.75em;
+}
+
+#messages {
+  	height: 15em; 
+  	width:100%;
+  	max-width: 800px;
+  	overflow-y: scroll; 
+   	box-shadow: 0 0 10px #aaa;
+  	resize:both;
+}
+
+#messages + p {
+	background-color: white;
+	padding: 2px;
+	height: 1.5em;
+	display: table;
+	border: solid 1px #ccc;
+}
+
+#messages + p select {
+	background: transparent;
+	/*background-color: #ffe;*/
+    /*width: 268px;*/
+    padding: 0.1em;
+    /*font-size: 16px;*/
+    /*line-height: 1;*/
+    border: 0;
+    border-radius: 0;
+    height: 100%;
+    -webkit-appearance: none;
+}
+
+#messages + p input {
+	background: transparent;
+    border: 0;
+    border-right: solid 1px #ccc;
+    border-radius: 0;
+    height: 100%;
+    min-width: 200px;
+}
+
+other{
+	color: #888;
+	font-size: 0.75em;
+}
+
+.aleft{
+	text-align: left;
+}
+
+.aright{
+	text-align: right;
+}
+
+table.self{
+	background-color: white;
+	width:100%;
+	line-height: 1.5em;
+	border-collapse:separate;
+    border-spacing:0 0;
+}
+
+table.self tr{
+	margin:0;
+}
+
+table.self tr td:first-child{
+	width:20%;
+	font-size:0.75em;
+	text-align: center;
+	background-color: #eee;
+}
+
+table.self tr td:first-child small{
+	color:#aaa;
+	vertical-align: bottom;
+}
+
+table.self tr td:last-child{
+	padding:0.2em;
+}
+
+table.self tr td:last-child.aleft{
+	background-color: #F0E0D6;
+}

@@ -37,3 +37,11 @@
 Debug/
 Release/
 images/
+run-serve.sh
+old/
+cert/
+dump/
+log/*
+db/*
+assets/backups/*
+backup.sh

@@ -1,7 +1,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 
+#ifndef CCHAN_GENERAL_HEADER_INCLUDED
+#define CCHAN_GENERAL_HEADER_INCLUDED
+
 extern "C"{
-#include "unqlite.h"
+#include "../lib/unqlite/unqlite.h"
 }
 
 #include <stdio.h>
@@ -60,24 +63,26 @@ struct History{
 
 // when use readXXX, remember to destory them
 
-void changeState(struct Thread* t, char statebit, bool op);
-char * resolveState(char state);
-char* readString(unqlite *pDb, char* key);
-char* readString_(unqlite *pDb, cclong key);
-int writeString(unqlite *pDb, char* key, const char* value, bool autoCommit);
-cclong writeString_(unqlite *pDb, char* value, bool autoCommit);
-cclong readcclong(unqlite *pDb, char* key);
-cclong readcclong_(unqlite *pDb, cclong key);
-int writecclong(unqlite *pDb, char* key, cclong value, bool autoCommit);
-cclong writecclong_(unqlite *pDb, cclong value, bool autoCommit);
+void    changeState(struct Thread* t, char statebit, bool op);
+char*   resolveState(char state);
+char*   readString(unqlite *pDb, char* key);
+char*   readString_(unqlite *pDb, cclong key);
+int     writeString(unqlite *pDb, char* key, const char* value, bool autoCommit);
+cclong  writeString_(unqlite *pDb, char* value, bool autoCommit);
+cclong  readcclong(unqlite *pDb, char* key);
+cclong  readcclong_(unqlite *pDb, cclong key);
+int     writecclong(unqlite *pDb, char* key, cclong value, bool autoCommit);
+cclong  writecclong_(unqlite *pDb, cclong value, bool autoCommit);
 struct Thread* readThread_(unqlite *pDb, cclong key);
-cclong writeNewThread(unqlite *pDb, struct Thread* t, bool autoCommit);
-int writeThread(unqlite *pDb, cclong key, struct Thread* t, bool autoCommit);
-cclong nextCounter(unqlite *pDb);
-int resetDatabase(unqlite *pDb);
-cclong findParent(unqlite *pDb, struct Thread* b);
-int deleteThread(unqlite *pDb, cclong tid);
-int newThread(unqlite *pDb, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega);
-int newReply(unqlite *pDb, cclong id, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega);
-int displayReply(unqlite *pDb, struct Thread *t);
-int listThread(unqlite *pDb);
+cclong  writeNewThread(unqlite *pDb, struct Thread* t, bool autoCommit);
+int     writeThread(unqlite *pDb, cclong key, struct Thread* t, bool autoCommit);
+cclong  nextCounter(unqlite *pDb);
+int     resetDatabase(unqlite *pDb);
+cclong  findParent(unqlite *pDb, struct Thread* b);
+int     deleteThread(unqlite *pDb, cclong tid);
+int     newThread(unqlite *pDb, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega);
+int     newReply(unqlite *pDb, cclong id, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega);
+int     displayReply(unqlite *pDb, struct Thread *t);
+int     listThread(unqlite *pDb);
+
+#endif

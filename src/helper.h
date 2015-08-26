@@ -1,5 +1,8 @@
 #define _CRT_SECURE_NO_WARNINGS
 
+#ifndef CCHAN_HELPER_HEADER_INCLUDED
+#define CCHAN_HELPER_HEADER_INCLUDED
+
 #include <string>
 #include <cstring>
 #include <vector>
@@ -13,8 +16,8 @@
 #endif
 
 extern "C"{
-#include "mongoose.h"
-#include "unqlite.h"
+#include "../lib/unqlite/unqlite.h"
+#include "../lib/mongoose/mongoose.h"
 }
 
 using namespace std;
@@ -36,3 +39,5 @@ char* nowNow();
 void Fatal(const char *zMsg);
 void logLog(const char* msg, ...);
 size_t szBuilder(char* buf, size_t buf_size, ...);
+
+#endif
