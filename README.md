@@ -29,6 +29,16 @@ cchan是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http:/
 5. 使用命令`--port XXX`设置监听端口。
 6. 其他命令请参考源码。
 
+性能
+---------
+使用Webbench对站点进行测试，统一设置为持续10s的500并发连接，结果如下：
+
+目标	 		 			|pages/min
+------------------------|---------
+waifu.cc/h/pixmicat.php	|5000
+waifu.cc/page/1			|77000
+waifu.cc/page/9			|74000
+make test(1000回复)		|5000
 
 #CCHAN Anonymous Image Board
 
