@@ -13,9 +13,11 @@ cchan是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http:/
 
 在Linux平台下编译，请使用64位系统和GCC 4.8以上的版本，若要使用HTTPS，请安装OpenSSL。
 
-运行`make clean & make`进行编译。
+运行`make clean && make`进行编译。
 
 运行`make test`打开测试服务器，默认为监听`13739`端口，管理员密码`111`。
+
+在mingw64平台下编译，请使用CLion导入源码即可。
 
 启动cchan
 ---------
@@ -40,9 +42,9 @@ waifu.cc/page/1			|77000
 waifu.cc/page/9			|74000
 make test(1000回复)		|5000
 
-#CCHAN Anonymous Image Board
+#CCHAN Anonymous Imageboard
 
-CCHAN is an anonymous image board based on [mongoose](https://github.com/cesanta/mongoose) and [unqlite](http://unqlite.org).
+CCHAN is an anonymous imageboard based on [mongoose](https://github.com/cesanta/mongoose) and [unqlite](http://unqlite.org).
 
 [Demo](https://waifu.cc/) is hosted on Linode, CentOS 7 x64 running on a single core CPU with 1GB of RAM, the site is using a certificate issued by ssls.com and some browsers may raise SSL warnings.
 
@@ -53,9 +55,11 @@ Currently the development on Windows has been deprecated.
 
 To compile it on Linux, you need a 64bit system with GCC > 4.8.
 
-Run `make clean & make` to compile.
+Run `make clean && make` to compile.
 
 Run `make test` to open a test server listening on 13739 and the admin's password is `111`.
+
+To compile it on mingw64, import all the codes into CLion and it should work.
 
 Start the Server
 ---------
@@ -71,3 +75,14 @@ Follow these steps:
 Note on i18n
 ---------
 CCHAN is a small server and it compiles fast, inside `./src/lang.h` is the Chinese translation, feel free to add yours and recompile it.
+
+Performance
+---------
+Use WebBench for benchmarking, 500 clients & 10s:
+
+URL	 		 			|pages/min
+------------------------|---------
+waifu.cc/h/pixmicat.php	|5000
+waifu.cc/page/1			|77000
+waifu.cc/page/9			|74000
+make test(1000回复)		|5000

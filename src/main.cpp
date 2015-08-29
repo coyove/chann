@@ -62,7 +62,9 @@ struct mg_server *server;
 
 #define TEST_ARG(b1, b2) (strcmp(argv[i], b1) == 0 || strcmp(argv[i], b2) == 0)
 
-static const unsigned long long BUILD_DATE = 1;
+#define ADMIN_VIEW() mg_printf_data(conn, "<script type='text/javascript'>var e=document.getElementById('slogan');e.innerText=e.innerHTML;document.getElementById('opt').className='';</script>")
+
+static const unsigned long long BUILD_DATE = __BUILD_DATE;
 
 const char * getClientIP(mg_connection* conn){
     const char * xff = mg_get_header(conn, "X-Forwarded-For");
@@ -177,34 +179,42 @@ void doThread(mg_connection* conn, cclong tid, char STATE){
 
 void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool admin_view = false, char* iid = ""){
     // if (!(r->state & NORMAL_DISPLAY) && !admin_view) return;
-
+#ifdef __MINGW64__
     struct tm *ti;
-//    struct tm today;
     char tmp[8192] = {'\0'};
     int len;
 
-//    localtime_r(&(r->date), &ti);
     ti = localtime(&(r->date));
-//    time_t now = time(NULL);
-//    localtime_r(&now, &today);
-//
-//    char std_time[64];
-//    strftime(std_time, 64, " %X", &ti);
-//
-//    //the date and time
     char timetmp[64];
-//    time_t diff = now - (today.tm_sec + today.tm_min * 60 + today.tm_hour * 3600) -
-//                 (r->date - (ti.tm_sec + ti.tm_min * 60 + ti.tm_hour * 3600));
-//    cclong diff_day = diff / 3600 / 24;
-//
-//    switch(diff_day){
-//        case 0: strcpy(timetmp, STRING_TODAY); strcat(timetmp, std_time); break;
-//        case 1: strcpy(timetmp, STRING_YESTERDAY); strcat(timetmp, std_time); break;
-//        case 2: strcpy(timetmp, STRING_DAY_BEFORE_YESTERDAY); strcat(timetmp, std_time); break;
-//        default:
-            strftime(timetmp, 64, TIME_FORMAT, ti);
+    strftime(timetmp, 64, TIME_FORMAT, ti);
     delete ti;
-//    }
+#else
+    struct tm ti;
+    struct tm today;
+    char tmp[8192] = {'\0'};
+    int len;
+
+    localtime_r(&(r->date), &ti);
+    time_t now = time(NULL);
+    localtime_r(&now, &today);
+
+    char std_time[64];
+    strftime(std_time, 64, " %X", &ti);
+
+    //the date and time
+    char timetmp[64];
+    time_t diff = now - (today.tm_sec + today.tm_min * 60 + today.tm_hour * 3600) -
+                  (r->date - (ti.tm_sec + ti.tm_min * 60 + ti.tm_hour * 3600));
+    cclong diff_day = diff / 3600 / 24;
+
+    switch(diff_day){
+        case 0: strcpy(timetmp, STRING_TODAY); strcat(timetmp, std_time); break;
+        case 1: strcpy(timetmp, STRING_YESTERDAY); strcat(timetmp, std_time); break;
+        case 2: strcpy(timetmp, STRING_DAY_BEFORE_YESTERDAY); strcat(timetmp, std_time); break;
+        default:
+            strftime(timetmp, 64, TIME_FORMAT, &ti);
+    }
+#endif
 
     bool reply 		= display_state & SEND_IS_REPLY;
     bool show_reply = display_state & SEND_SHOW_REPLY_LINK;
@@ -394,12 +404,7 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
     char *slogan = readString(pDb, "slogan");
     if(slogan) {
         mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
-        if(admin_view)
-            mg_printf_data(conn, "<script type=\"text/javascript\">"
-                "var elem = document.getElementById('slogan');"
-                "elem.innerText = elem.innerHTML;"
-                "document.getElementById('opt').className='';"
-                "</script>");
+        if(admin_view) ADMIN_VIEW();
         delete [] slogan;
     }
 
@@ -462,12 +467,7 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
     char *slogan = readString(pDb, "slogan");
     if(slogan) {
         mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
-        if(admin_view)
-            mg_printf_data(conn, "<script type=\"text/javascript\">"
-                "var elem = document.getElementById('slogan');"
-                "elem.innerText = elem.innerHTML;"
-                "document.getElementById('opt').className='';"
-                "</script>");
+        if(admin_view) ADMIN_VIEW();
         delete [] slogan;
     }
 
@@ -637,6 +637,7 @@ void showThread(mg_connection* conn, cclong id, bool reverse = false){
                 reverse ? "thread" : "daerht", id, reverse ? STRING_VIEW_ASCEND : STRING_VIEW_DESCEND);
 
     if(!archiveMode) mg_printf_data(conn, html_form, zztmp, "postform", STRING_REPLY_TO_THREAD);
+    if(admin_view) ADMIN_VIEW();
         
     if (r->childThread) {
         cclong r_childThread = r->childThread;
@@ -1612,7 +1613,7 @@ int main(int argc, char *argv[]){
         }
     }
 
-    int rc = unqlite_open(&pDb, zPath, UNQLITE_OPEN_CREATE);
+    int rc = unqlite_open(&pDb, zPath, UNQLITE_OPEN_CREATE + UNQLITE_OPEN_MMAP);
     if (rc != UNQLITE_OK) Fatal("Out of memory");
 
     logLog("Database: '%s'", zPath);
