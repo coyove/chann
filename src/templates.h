@@ -220,6 +220,7 @@ char *html_header =
 "</script>"
 "</head>"
 "<body onload='isar()'>"
+"<div id='container'>"
 "<div class='page-header'><div class='page-header-lim'>"
     "<p style='float:left'><a href='/' style='vertical-align:middle'><img id='header-image' src='/images/main.png'></img></a></p>"
     "<p style='float:right;margin:1em;'>"
@@ -244,6 +245,7 @@ char *html_footer =
 "</div>"
 "<div class='page-footer'>"
 "<div style='color:#aaa'>%s</div>"
+"</div>"
 "</div>"
 "</body>"
 "</html>";
