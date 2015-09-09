@@ -93,9 +93,9 @@ void printFooter(mg_connection* conn, float e_time = 0.0f){
     char footer2[256] = {0};
     time_t c;
     time(&c);
-    sprintf(footer2, "<small title='C:%d,T:%d,M:%ld,B:%ld'>Proudly powered by <a href='https://github.com/coyove/cchan' target=_blank>CCHAN</a> in %.2fs</small>", 
-                (stopNewcookie? 0 : 1), (int)((c - gStartupTime) / 3600), readMemusage() * 4, BUILD_DATE, e_time);
-    mg_printf_data(conn, html_footer, footer2);
+    sprintf(footer2, "<small title='C:%d,T:%d,M:%ldkb'>Proudly powered by <a href='https://github.com/coyove/cchan' target=_blank>CCHAN</a> in %.2fs</small>", 
+                (stopNewcookie? 0 : 1), (int)((c - gStartupTime) / 3600), readMemusage() * 4, e_time);
+    mg_printf_data(conn, html_footer, footer2, BUILD_DATE);
 }
 
 void printHeader(mg_connection* conn, const char* suffix = ""){
@@ -433,6 +433,8 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
 
     cclong current_page = endID / threadsPerPage;
 
+    mg_printf_data(conn, "<a class='pager pager-arrow' href=\"/gallery/%d\">&#171;</a>", current_page-1?current_page-1:1);
+
     for (cclong i = 1; i <= totalPages; ++i){
         char tmp[256];
         int len;
@@ -446,9 +448,9 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
             mg_send_data(conn, tmp, len);
         }
     }
-    mg_printf_data(conn, "<a class='pager' href=\"/gallery/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
+    mg_printf_data(conn, "<a class='pager pager-arrow' href=\"/gallery/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
     // mg_printf_data(conn, "|<a class='pager' href='/'>&#128193;&nbsp;"STRING_TIMELINE_PAGE"</a>");
-    mg_printf_data(conn, "</div>");
+    mg_printf_data(conn, "</div><br style='clear:both'>");
     
     // clock_t endc = clock();
     // PRINT_TIME();
@@ -596,6 +598,8 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 
     cclong current_page = endID / threadsPerPage;
 
+    mg_printf_data(conn, "<a class='pager pager-arrow' href=\"/page/%d\">&#171;</a>", current_page-1?current_page-1:1);
+
     for (cclong i = 1; i <= totalPages; ++i){
         char tmp[256];
         int len;
@@ -612,9 +616,9 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
             mg_send_data(conn, tmp, len);
         }
     }
-    mg_printf_data(conn, "<a class='pager' href=\"/page/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
+    mg_printf_data(conn, "<a class='pager pager-arrow' href=\"/page/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
     // mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128444;&nbsp;"STRING_GALLERY_PAGE"</a>");
-    mg_printf_data(conn, "</div>");
+    mg_printf_data(conn, "</div><br style='clear:both'>");
     
     // clock_t endc = clock();
     // PRINT_TIME();

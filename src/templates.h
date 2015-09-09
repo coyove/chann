@@ -216,6 +216,10 @@ char *html_header =
 "}"
 "function isar(){"
     "if(!document.getElementById('input-area')) document.getElementById('start-new-thread').className='hiding';"
+    "var windowHeight = window.innerHeight;"
+    "var divHeight = document.getElementById('container').clientHeight;"
+    "if(divHeight<windowHeight)"
+        "document.getElementById('page-footer').className='page-footer-fixed';"
 "}"
 "</script>"
 "</head>"
@@ -243,8 +247,10 @@ char *html_header =
 
 char *html_footer =
 "</div>"
-"<div class='page-footer'>"
-"<div style='color:#aaa'>%s</div>"
+"<div class='page-footer' id='page-footer'>"
+"<p style='color:#aaa;margin:0;float:left'>%s</p>"
+"<p style='color:#aaa;margin:0;float:right'><small>%ld</small></p>"
+"<br style='clear:both'>"
 "</div>"
 "</div>"
 "</body>"
