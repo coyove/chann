@@ -92,7 +92,7 @@ function alertNewMessage(){
 
 	if(!winFocus) {
 		document.title = "(新消息)" + ori;//setInterval(blinkTitle, 1000);
-		var audio = new Audio('/alert.mp3');
+		var audio = new Audio('/assets/alert.mp3');
 		audio.play();
 	}
 }

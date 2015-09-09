@@ -93,7 +93,7 @@ void printFooter(mg_connection* conn, float e_time = 0.0f){
     char footer2[256] = {0};
     time_t c;
     time(&c);
-    sprintf(footer2, "<small title='C:%d,T:%d,M:%ld,B:%ld'>Proudly powered by <a href='https://github.com/coyove/cchan' target=_blank>CCHAN</a> in %.3fs</small>", 
+    sprintf(footer2, "<small title='C:%d,T:%d,M:%ld,B:%ld'>Proudly powered by <a href='https://github.com/coyove/cchan' target=_blank>CCHAN</a> in %.2fs</small>", 
                 (stopNewcookie? 0 : 1), (int)((c - gStartupTime) / 3600), readMemusage() * 4, BUILD_DATE, e_time);
     mg_printf_data(conn, html_footer, footer2);
 }
