@@ -1,4 +1,4 @@
-[English](#cchan-anonymous-image-board)
+[English](#cchan-anonymous-imageboard)
 
 #cchan 匿名版
 
@@ -49,7 +49,7 @@ CCHAN is an anonymous imageboard based on [mongoose](https://github.com/cesanta/
 [Demo](https://waifu.cc/) is hosted on Linode, CentOS 7 x64 running on a single core CPU with 1GB of RAM, the site is using a certificate issued by ssls.com and some browsers may raise SSL warnings.
 
 Compile the Server
----------
+------------------
 
 Currently the development on Windows has been deprecated.
 
@@ -62,7 +62,7 @@ Run `make test` to open a test server listening on 13739 and the admin's passwor
 To compile it on mingw64, import all the codes into CLion and it should work.
 
 Start the Server
----------
+----------------
 Follow these steps:
 
 1. `mkdir images` if not created.
@@ -85,4 +85,4 @@ URL	 		 			|pages/min
 waifu.cc/h/pixmicat.php	|5000
 waifu.cc/page/1			|77000
 waifu.cc/page/9			|74000
-make test(1000回复)		|5000
+make test(1000 replies)	|5000

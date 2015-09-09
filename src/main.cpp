@@ -62,22 +62,40 @@ struct mg_server *server;
 
 #define TEST_ARG(b1, b2) (strcmp(argv[i], b1) == 0 || strcmp(argv[i], b2) == 0)
 
-#define ADMIN_VIEW() mg_printf_data(conn, "<script type='text/javascript'>var e=document.getElementById('slogan');e.innerText=e.innerHTML;document.getElementById('opt').className='';</script>")
+#define ADMIN_VIEW() mg_printf_data(conn, "<script type='text/javascript'>var e=document.getElementById('slogan');if(e){e.innerText=e.innerHTML;}document.getElementById('opt').className='';</script>")
 
 static const unsigned long long BUILD_DATE = __BUILD_DATE;
+
+// Linux only
+unsigned long readMemusage(){
+    unsigned long dummy;
+    unsigned long res;
+
+    FILE *f = fopen("/proc/self/statm", "r");
+    if(!f) return 0;
+    fscanf(f,"%ld %ld %ld %ld %ld %ld %ld", &dummy, &res, &dummy, &dummy, &dummy, &dummy, &dummy);
+    fclose(f);
+    return res;
+}
 
 const char * getClientIP(mg_connection* conn){
     const char * xff = mg_get_header(conn, "X-Forwarded-For");
     return useXFF ? (xff ? xff : conn->remote_ip) : conn->remote_ip;
 }
 
-void printFooter(mg_connection* conn){
-    char * footer = readString(pDb, "footer");
+void printFooter(mg_connection* conn, float e_time = 0.0f){
+    char *footer = readString(pDb, "footer");
     if(footer){
         mg_printf_data(conn, "<div id='footer'>%s</div>", footer);
         delete [] footer;
     }
-    mg_printf_data(conn, "</div></body></html>");
+    
+    char footer2[256] = {0};
+    time_t c;
+    time(&c);
+    sprintf(footer2, "<small title='C:%d,T:%d,M:%ld,B:%ld'>Proudly powered by <a href='https://github.com/coyove/cchan' target=_blank>CCHAN</a> in %.3fs</small>", 
+                (stopNewcookie? 0 : 1), (int)((c - gStartupTime) / 3600), readMemusage() * 4, BUILD_DATE, e_time);
+    mg_printf_data(conn, html_footer, footer2);
 }
 
 void printHeader(mg_connection* conn, const char* suffix = ""){
@@ -142,18 +160,6 @@ bool verifyAdmin(mg_connection* conn){
     char ssid[128]; 
     mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
     return (strcmp(ssid, adminCookie) == 0);
-}
-
-// Linux only
-unsigned long readMemusage(){
-    unsigned long dummy;
-    unsigned long res;
-
-    FILE *f = fopen("/proc/self/statm", "r");
-    if(!f) return 0;
-    fscanf(f,"%ld %ld %ld %ld %ld %ld %ld", &dummy, &res, &dummy, &dummy, &dummy, &dummy, &dummy);
-    fclose(f);
-    return res;
 }
 
 void doThread(mg_connection* conn, cclong tid, char STATE){
@@ -394,7 +400,7 @@ void requestAdminConsole(mg_connection* conn, struct Thread* r){
 void showGallery(mg_connection* conn, cclong startID, cclong endID){
     struct Thread *r = readThread_(pDb, 0); // get the root thread
     cclong c = 0;
-    clock_t startc = clock();
+    // clock_t startc = clock();
 
     bool admin_view = verifyAdmin(conn);
 
@@ -404,9 +410,9 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
     char *slogan = readString(pDb, "slogan");
     if(slogan) {
         mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
-        if(admin_view) ADMIN_VIEW();
         delete [] slogan;
     }
+    if(admin_view) ADMIN_VIEW();
 
     for(cclong i = totalThreads; i > 0; --i){
         delete r;
@@ -442,16 +448,16 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
     }
     mg_printf_data(conn, "<a class='pager' href=\"/gallery/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
     // mg_printf_data(conn, "|<a class='pager' href='/'>&#128193;&nbsp;"STRING_TIMELINE_PAGE"</a>");
-    mg_printf_data(conn, "</div><br/>");
+    mg_printf_data(conn, "</div>");
     
-    clock_t endc = clock();
-    PRINT_TIME();
+    // clock_t endc = clock();
+    // PRINT_TIME();
 }
 
 void showThreads(mg_connection* conn, cclong startID, cclong endID){
     struct Thread *r = readThread_(pDb, 0); // get the root thread
     cclong c = 0;
-    clock_t startc = clock();
+    // clock_t startc = clock();
 
     bool admin_view = verifyAdmin(conn);
 
@@ -467,9 +473,9 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
     char *slogan = readString(pDb, "slogan");
     if(slogan) {
         mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
-        if(admin_view) ADMIN_VIEW();
         delete [] slogan;
     }
+    if(admin_view) ADMIN_VIEW();
 
     while (r->nextThread){
         cclong tmpid = r->nextThread;
@@ -608,14 +614,14 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
     }
     mg_printf_data(conn, "<a class='pager' href=\"/page/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
     // mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128444;&nbsp;"STRING_GALLERY_PAGE"</a>");
-    mg_printf_data(conn, "</div><br/>");
+    mg_printf_data(conn, "</div>");
     
-    clock_t endc = clock();
-    PRINT_TIME();
+    // clock_t endc = clock();
+    // PRINT_TIME();
 }
 
 void showThread(mg_connection* conn, cclong id, bool reverse = false){
-    clock_t startc = clock();
+    // clock_t startc = clock();
 
     
     struct Thread *r = readThread_(pDb, id); // get the root thread
@@ -692,9 +698,9 @@ void showThread(mg_connection* conn, cclong id, bool reverse = false){
         mg_printf_data(conn, "<i>no reply yet</i><hr>", r->childCount);
     }*/
 
-    clock_t endc = clock();
+    // clock_t endc = clock();
     // mg_printf_data(conn, "Completed in %.3lfs<br/>", (float)(endc - startc) / CLOCKS_PER_SEC);
-    PRINT_TIME();
+    // PRINT_TIME();
 }
 
 void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
@@ -742,8 +748,8 @@ void userListThread(mg_connection* conn, bool admin_view = false){
             if(t) delete t;
         }
         clock_t endc = clock();
-        PRINT_TIME();
-        printFooter(conn);
+        // PRINT_TIME();
+        printFooter(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
 
         if(r) delete r;
     }else{
@@ -1071,6 +1077,8 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
         mg_printf_data(conn, html_form, "/post_thread", "hiding", STRING_NEW_THREAD);
     }
 
+    clock_t startc = clock();
+
     if(indexPage)
         showThreads(conn, 1, threadsPerPage);
     else{
@@ -1082,13 +1090,15 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
             showThreads(conn, i, j);
     }
 
+    clock_t endc = clock();
+
     char ssid[10];
     mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 9); ssid[9] = 0;
-    time_t nn;
-    time(&nn);
-    mg_printf_data(conn, "<div style='text-align:center;color:#aaa;line-height:1em'><small>%d.%ld.%s.%ld</small></div>", 
-        stopNewcookie? 0 : 1, readMemusage() * 4, ssid, BUILD_DATE);
-    printFooter(conn);
+    // time_t nn;
+    // time(&nn);
+    // mg_printf_data(conn, "<div style='text-align:center;color:#aaa;line-height:1em'><small>%d.%ld.%s.%ld</small></div>", 
+    //     stopNewcookie? 0 : 1, readMemusage() * 4, ssid, BUILD_DATE);
+    printFooter(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
 }
 
 static void sendReply(struct mg_connection *conn) {
@@ -1148,9 +1158,11 @@ static void sendReply(struct mg_connection *conn) {
             else
                 mg_printf_data(conn, "<a href='/'>&#171; "STRING_HOMEPAGE"</a><hr>");
 
+            clock_t startc = clock();
             showThread(conn, id, strstr(conn->uri, "/daerht/"));
+            clock_t endc = clock();
 
-            printFooter(conn);
+            printFooter(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
         }   //view a thread and its replies
 
         delete t;
@@ -1339,8 +1351,8 @@ static void sendReply(struct mg_connection *conn) {
                 if(t) delete t;
             }
             clock_t endc = clock();
-            PRINT_TIME();
-            printFooter(conn);
+            // PRINT_TIME();
+            printFooter(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
 
             if(r) delete r;
         }
