@@ -62,7 +62,12 @@ dcyan.hand{ cursor: pointer; }
     padding:5px;
     background-color:white;
     border:solid 1px #ccc;
-    line-height:2.5em;
+    /*line-height:2.5em;*/
+    height: 20px;
+    width: 20px;
+    display: block;
+    border-radius: 50%;
+    float:left;
 }
 .pager:hover{
     background-color:#eee;
@@ -72,8 +77,18 @@ dcyan.hand{ cursor: pointer; }
     padding:5px;
     background-color:#39C;
     border:solid 1px #ccc;
-    line-height:2.5em;
-    color:white;
+    /*line-height:2.5em;*/
+    color: white;
+    height: 20px;
+    width: 20px;
+    display: block;
+    border-radius: 50%;
+    float:left;
+}
+.pager-arrow {
+    font-size: 20px;
+    font-weight: bolder;
+    line-height: 16px;
 }
 #input-area{
     margin:0 auto;
@@ -281,6 +296,15 @@ span .wp-btn{
     border-top: solid 1px #ccc;
     box-shadow: 0 0 8px #ccc;
     padding:0.33em;
+}
+.page-footer-fixed{
+    background-color: #f5f5f5;
+    border-top: solid 1px #ccc;
+    box-shadow: 0 0 8px #ccc;
+    padding:0.33em;
+    position: fixed;
+    width: 100%;
+    bottom: 0;
 }
 .page-header .page-header-lim p{
     padding: 0;

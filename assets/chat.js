@@ -172,5 +172,5 @@ window.onload = function() {
 	}
 	window.onblur = function () { winFocus = false; }
 
-	if(cvtm) cvtm(false);
+	if(isar) isar();
 };
