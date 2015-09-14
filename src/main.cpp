@@ -43,6 +43,7 @@ char    thumbPrefix[64];
 int     threadsPerPage  = 5;        //threads per page to show
 int     postCDTime      = 20;       //cooldown time
 int     maxFileSize     = 2;        //megabytes
+int     maxPageShown    = 0;
 int     autoLockThread  = 1000;
 bool    stopNewcookie   = false;    //stop delivering new cookies
 bool    stopCheckIP     = false;    //stop checking ip
@@ -331,7 +332,7 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
             	"</div>"
             "</div>",
             /*place holder*/
-            reply 								? "<div class='holder'>&nbsp;&nbsp;</div>" : "", 
+            reply 								? "<div class='holder'><holder></holder></div>" : "", 
             reply 								? "class='thread header'" : "class='thread'",
             /*image*/
             display_image, 
@@ -435,7 +436,7 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
 
     mg_printf_data(conn, "<a class='pager pager-arrow' href=\"/gallery/%d\">&#171;</a>", current_page-1?current_page-1:1);
 
-    for (cclong i = 1; i <= totalPages; ++i){
+    for (cclong i = 1; i <= (maxPageShown == 0 ? totalPages : maxPageShown); ++i){
         char tmp[256];
         int len;
 
@@ -600,8 +601,8 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 
     mg_printf_data(conn, "<a class='pager pager-arrow' href=\"/page/%d\">&#171;</a>", current_page-1?current_page-1:1);
 
-    for (cclong i = 1; i <= totalPages; ++i){
-        char tmp[256];
+    for (cclong i = 1; i <= (maxPageShown == 0 ? totalPages : maxPageShown); ++i){
+        char tmp[256] = {0};
         int len;
 
         if (abs(current_page - i) <= 5){
@@ -1076,28 +1077,28 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
 		printHeader(conn, (STRING_PAGE + num).c_str());
     }
 
-    if(!archiveMode){
-        // mg_printf_data(conn, show_hide_button);
-        mg_printf_data(conn, html_form, "/post_thread", "hiding", STRING_NEW_THREAD);
-    }
+    if(!archiveMode) mg_printf_data(conn, html_form, "/post_thread", "hiding", STRING_NEW_THREAD);
 
     clock_t startc = clock();
 
     if(indexPage)
         showThreads(conn, 1, threadsPerPage);
     else{
-        cclong j = extractLastNumber(conn) * threadsPerPage;
-        cclong i = j - threadsPerPage + 1;
-        if(galleryPage)
-            showGallery(conn, i, j);
-        else
-            showThreads(conn, i, j);
+        cclong cp = extractLastNumber(conn);
+        if(cp <= maxPageShown || maxPageShown == 0){
+            cclong j = cp * threadsPerPage;
+            cclong i = j - threadsPerPage + 1;
+            if(galleryPage)
+                showGallery(conn, i, j);
+            else
+                showThreads(conn, i, j);
+        }
     }
 
     clock_t endc = clock();
 
-    char ssid[10];
-    mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 9); ssid[9] = 0;
+    // char ssid[10];
+    // mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 9); ssid[9] = 0;
     // time_t nn;
     // time(&nn);
     // mg_printf_data(conn, "<div style='text-align:center;color:#aaa;line-height:1em'><small>%d.%ld.%s.%ld</small></div>", 
@@ -1462,6 +1463,17 @@ static void sendReply(struct mg_connection *conn) {
             checkIP(conn, true);
         }
     }
+    else if (strstr(conn->uri, "/pageshown/")){
+        if (verifyAdmin(conn)){
+            cclong n = extractLastNumber(conn);
+            maxPageShown = n;
+            printMsg(conn, "Max pages viewers can see: %d", n);
+            logLog("Max Page Shown: %d", maxPageShown);
+        }else{
+            printMsg(conn, STRING_NO_PERMISSION);
+            checkIP(conn, true);
+        }
+    }
     else if (strstr(conn->uri, "/adminconsole/")){
         if (verifyAdmin(conn)){
             cclong id = extractLastNumber(conn);
@@ -1662,6 +1674,7 @@ int main(int argc, char *argv[]){
         if(TEST_ARG("--cd-time",        "-c")) { postCDTime =      atoi(argv[++i]);     continue; }
         if(TEST_ARG("--max-image-size", "-I")) { maxFileSize =     atoi(argv[++i]);     continue; }
         if(TEST_ARG("--auto-lock",      "-L")) { autoLockThread =  atoi(argv[++i]);     continue; }
+        if(TEST_ARG("--page-shown",     "-P")) { maxPageShown =    atoi(argv[++i]);     continue; }
         if(TEST_ARG("--stop-cookie",    "-s")) stopNewcookie = true;
         if(TEST_ARG("--stop-ipcheck",   "-i")) stopCheckIP = true;
         if(TEST_ARG("--xff-ip",         "-x")) useXFF = true;

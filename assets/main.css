@@ -18,6 +18,16 @@
     z-index: -99;
     font-size: 30px;
 }
+holder {
+    display: block;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 7px 7px 7px 0;
+    border-color: transparent #cecac3 transparent transparent;
+    margin: 0;
+    padding: 0;
+}
 .wrapper .header div.reply-header{
     background:#CECAC3;
     margin: -0.5em;
@@ -31,7 +41,11 @@
     border-bottom-right-radius:5px;
 }
 .thread {margin: 0.5em; word-break: break-word;}
-.holder {float:left; padding:0.6em; color: #ccc;}
+.holder {
+    float:left; 
+    padding:10px 0 0 10px;; 
+    color: #ccc;
+}
 html, body{
     background:#F0EBE4;
 	font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -135,6 +149,7 @@ dcyan.hand{ cursor: pointer; }
     -webkit-box-sizing: border-box;
     -moz-box-sizing: border-box;
     box-sizing: border-box;
+    margin: 0;
 }
 #input-area p{
     background-color: #fafafa;
