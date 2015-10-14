@@ -60,6 +60,7 @@ html, body{
 }
 a.dcyan{color:darkcyan!important; }
 /*a.dcyan:hover{text-decoration: underline;}*/
+a:hover{}
 a,a:visited{
     text-decoration:none;
     color:#21759B;

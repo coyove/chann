@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string>
 #include <cstring>
+#include <iostream>
 #include <vector>
 #include <map>
 #include <unordered_set>
@@ -20,7 +21,8 @@ extern "C" {
 #include "../lib/mongoose/mongoose.h"
 }
 
-#include "templates.h"
+#include "lang.h"
+#include "tags.h"
 
 #if defined(_WIN32)
 #include <Windows.h>
@@ -59,7 +61,7 @@ deque<struct History *> chatHistory;
 
 struct mg_server *server;
 
-#define PRINT_TIME() mg_printf_data(conn,"<div style='text-align:center;color:#888'>Completed in %.3lfs</div>",(float)(endc-startc)/CLOCKS_PER_SEC)
+TemplateManager templates_manager;
 
 #define TEST_ARG(b1, b2) (strcmp(argv[i], b1) == 0 || strcmp(argv[i], b2) == 0)
 
@@ -96,7 +98,11 @@ void printFooter(mg_connection* conn, float e_time = 0.0f){
     time(&c);
     sprintf(footer2, "<small title='C:%d,T:%d,M:%ldkb'>Proudly powered by <a href='https://github.com/coyove/cchan' target=_blank>CCHAN</a> in %.2fs</small>", 
                 (stopNewcookie? 0 : 1), (int)((c - gStartupTime) / 3600), readMemusage() * 4, e_time);
-    mg_printf_data(conn, html_footer, footer2, BUILD_DATE);
+
+    // mg_printf_data(conn, html_footer, footer2, BUILD_DATE);
+    HTMLTemplate *ht = templates_manager.invoke_template("site_footer");
+    mg_printf_data(conn, "%s", ht->var("BUILD_DATE", to_string(BUILD_DATE)).var("LEFT_FOOTER", string(footer2)).build2().c_str());
+    delete ht;
 }
 
 void printHeader(mg_connection* conn, const char* suffix = ""){
@@ -107,11 +113,11 @@ void printHeader(mg_connection* conn, const char* suffix = ""){
     strcat(site_title, " - ");
     strcat(site_title, suffix);
 
-    // if(header){
-    //     mg_printf_data(conn, html_header, site_title, header);
-    //     delete [] header;
-    // }else
-        mg_printf_data(conn, html_header, site_title);
+    HTMLTemplate *ht = templates_manager.invoke_template("site_header");
+
+    mg_printf_data(conn, "%s", ht->var("SITE_TITLE", string(site_title)).build2().c_str());
+    // mg_printf_data(conn, html_header, site_title);
+    delete ht;
 }
 
 void printMsg(mg_connection* conn, const char* msg, ...){
@@ -123,7 +129,10 @@ void printMsg(mg_connection* conn, const char* msg, ...){
     vsprintf(tmpbuf, msg, argptr);
     va_end(argptr);
 
-    mg_printf_data(conn, html_error, "/ ", tmpbuf, "/ ", STRING_HOMEPAGE);
+    HTMLTemplate *ht = templates_manager.invoke_template("info_page");
+    mg_printf_data(conn, "%s", ht->var("CONTENT", string(tmpbuf)).stat("info_page", true).build2().c_str());
+    delete ht;
+
     printFooter(conn);
 }
 
@@ -229,76 +238,67 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
     bool cut_image 	= display_state & SEND_CUT_IMAGE;
     bool cut_count 	= display_state & SEND_CUT_REPLY_COUNT;
 
-    #define THREAD_ID ,_N(r->threadID),
-    #define THREAD_IMAGE ,r->imgSrc,
-
-    char crl[128] = {'\0'};
-    if(archiveMode)
-        snprintf(crl, 127, show_reply ? "[ <a href=\"/thread/%d\">"STRING_VIEW"</a> ]" : "", r->threadID); 
-    else
-        snprintf(crl, 127, show_reply ? "[ <a href=\"/thread/%d\">"STRING_REPLY"</a> ]" : "", r->threadID); 
+    // char crl[128] = {'\0'};
+    // if(archiveMode)
+    //     snprintf(crl, 127, show_reply ? "[ <a href=\"/thread/%d\">"STRING_VIEW"</a> ]" : "", r->threadID); 
+    // else
+    //     snprintf(crl, 127, show_reply ? "[ <a href=\"/thread/%d\">"STRING_REPLY"</a> ]" : "", r->threadID); 
     
-    char reply_count[256] = {'\0'};
-    if(r->childThread){
-        if(!cut_count){
-            struct Thread* c = readThread_(pDb, r->childThread);
-        // if(c->childCount > 5 && show_reply && !reply)
-        //     snprintf(reply_count, 255,
-        //         "<dcyan>&#128172;&nbsp;"SRTING_THREAD_REPLIES_HIDE"</dcyan><br/>", 
-        //         c->childCount - 5, crl); 
-            snprintf(reply_count, 255,
-                "<a class='dcyan' href='/thread/%d'>&#128172;&nbsp;"SRTING_THREAD_REPLIES"</a><br/>", 
-                r->threadID, c->childCount); 
-            delete c;
-        }
-    }
+    // char reply_count[256] = {'\0'};
+    // if(r->childThread && !cut_count){
+    //     struct Thread* c = readThread_(pDb, r->childThread);
+    //     snprintf(reply_count, 255,
+    //         "<a class='dcyan' href='/thread/%d'>&#128172;&nbsp;"SRTING_THREAD_REPLIES"</a><br/>", 
+    //         r->threadID, c->childCount); 
 
-    char ref_or_link[64] = {'\0'};
-    if(show_reply)
-        snprintf(ref_or_link, 63, "<a href='javascript:qref(%d)'>No.%d</a>", r->threadID, r->threadID);
-        // BEGIN_STRING(ref_or_link), "<a href='javascript:qref("THREAD_ID")'>No."THREAD_ID"</a>", END_STRING;
-    else
-        snprintf(ref_or_link, 63, "<a href='/thread/%d'>No.%d</a>", r->threadID, r->threadID);
-        // BEGIN_STRING(ref_or_link), "<a href='/thread/"THREAD_ID"'>No."THREAD_ID"</a>", END_STRING;
+    //     delete c;
+    // }
 
-    char display_image[256] = {'\0'};
-    if (strlen(r->imgSrc) >= 4){
-    	string fname(r->imgSrc);
+    // char ref_or_link[64] = {'\0'};
+    // if(show_reply)
+    //     snprintf(ref_or_link, 63, "<a href='javascript:qref(%d)'>No.%d</a>", r->threadID, r->threadID);
+    // else
+    //     snprintf(ref_or_link, 63, "<a href='/thread/%d'>No.%d</a>", r->threadID, r->threadID);
+
+    // char display_image[256] = {'\0'};
+
+    // if (strlen(r->imgSrc) >= 4){
+    // 	string fname(r->imgSrc);
         
-        if (endsWith(fname, ".jpg") || endsWith(fname, ".gif") || endsWith(fname, ".png")){
-	        if(cut_image){
-	            struct stat st;
-	            stat(("images/" + fname).c_str(), &st);
+    //     if (endsWith(fname, ".jpg") || endsWith(fname, ".gif") || endsWith(fname, ".png")){
+	   //      if(cut_image){
+	   //          struct stat st;
+	   //          stat(("images/" + fname).c_str(), &st);
 
-	            snprintf(display_image, 255, 
-	            	"<div class='img'>"
-	            		"<a id='img-%d' href='javascript:void(0)' onclick='exim(\"img-%d\",\"%s\")'>["STRING_VIEW_IMAGE" (%d kb)]</a>"
-	            	"</div>", 
-	                r->threadID, r->threadID, r->imgSrc, st.st_size / 1024);
-	        }
-	        else{
-	            snprintf(display_image, 255, 
-	                	"<div class='img'>"
-	                		"<a id='img-%d' href='javascript:void(0)' onclick=\"enim('img-%d','/images/%s','%s%s')\">"
-	                			"<img class='%s' src='%s%s'/>"
-	                		"</a>"
-	                	"</div>", 
-                        r->threadID, r->threadID, r->imgSrc, thumbPrefix, r->imgSrc,
-                        reply ? "img-s" : "img-n", thumbPrefix, r->imgSrc);
-	        }
-	    }else
-	    	snprintf(display_image, 255, 
-	            	"<div class='img file'>"
-	            		"<a class='wp-btn' href='/images/%s'>"STRING_VIEW_FILE"</a>"
-	            	"</div>", r->imgSrc);
-    }
+	   //          snprintf(display_image, 255, 
+	   //          	"<div class='img'>"
+	   //          		"<a id='img-%d' href='javascript:void(0)' onclick='exim(\"img-%d\",\"%s\")'>["STRING_VIEW_IMAGE" (%d kb)]</a>"
+	   //          	"</div>", 
+	   //              r->threadID, r->threadID, r->imgSrc, st.st_size / 1024);
+	   //      }
+	   //      else{
+                
+	   //          snprintf(display_image, 255, 
+	   //              	"<div class='img'>"
+	   //              		"<a id='img-%d' href='javascript:void(0)' onclick=\"enim('img-%d','/images/%s','%s%s')\">"
+	   //              			"<img class='%s' src='%s%s'/>"
+	   //              		"</a>"
+	   //              	"</div>", 
+    //                     r->threadID, r->threadID, r->imgSrc, thumbPrefix, r->imgSrc,
+    //                     reply ? "img-s" : "img-n", thumbPrefix, r->imgSrc);
+	   //      }
+	   //  }else{
+	   //  	snprintf(display_image, 255, 
+	   //          	"<div class='img file'>"
+	   //          		"<a class='wp-btn' href='/images/%s'>"STRING_VIEW_FILE"</a>"
+	   //          	"</div>", r->imgSrc);
+    //     }
+    // }
 
-    char admin_ctrl[128] = {'\0'};
-    if(admin_view)
-        snprintf(admin_ctrl, 127, "&nbsp;<span id='admin-%d'><a class='wp-btn' onclick='javascript:admc(%d)'>%s</a></span>", r->threadID, r->threadID, r->email);
-     //    BEGIN_STRING(admin_ctrl),
-    	// 	"&nbsp;<span id=admin-"THREAD_ID"><a class=wp-btn onclick=javascript:admc("THREAD_ID")>",r->email,"</a></span>",
-    	// END_STRING;
+    
+    // char admin_ctrl[128] = {'\0'};
+    // if(admin_view)
+    //     snprintf(admin_ctrl, 127, "&nbsp;<span id='admin-%d'><a class='wp-btn' onclick='javascript:admc(%d)'>%s</a></span>", r->threadID, r->threadID, r->email);
 
     //if the content is too cclong to display
     char c_content[1050] = {'\0'};
@@ -306,96 +306,157 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
     strncpy(c_content, content, 1000);
     c_content[1000] = 0;
 
-    char thread_title[128] = {0};
-    if(reply && strcmp(r->author, STRING_UNTITLED) == 0){}
-    else
-        strcpy(thread_title, r->author);
+    // char thread_title[128] = {0};
+    // if(reply && strcmp(r->author, STRING_UNTITLED) == 0){}
+    // else
+    //     strcpy(thread_title, r->author);
 
     if (strlen(content) > 1000) strcat(c_content, "<font color='red'><b>[...]</b></font>");
 
-    if (r->state & NORMAL_DISPLAY || admin_view)
-        len = snprintf(tmp, 8192,
-            "<div>%s"
-            	"<div %s>"
-            		/*image*/
-            		"%s"
-            		/*thread header*/
-            		"<div class='reply-header'>%s&nbsp;<ttt>%s</ttt>&nbsp;"
-            		"<span class='tmsc'><ssid>%s%s</ssid> "STRING_POSTED_AT" %s</span>&nbsp;%s%s"
-            		"</div>"
-            		/*thread comment*/
-            		"<div class='quote'>%s</div>"
-    		        "%s"
-    		        "%s"
-    		        "%s"
-    		        "%s"
-            	"</div>"
-            "</div>",
-            /*place holder*/
-            reply 								? "<div class='holder'><holder></holder></div>" : "", 
-            reply 								? "class='thread header'" : "class='thread'",
-            /*image*/
-            display_image, 
-            ref_or_link, thread_title, 
-            // reply                               ? "" : "ID:",
-            (strcmp(r->ssid, "Admin") == 0) 	? "<red>"STRING_ADMIN"</red>" : r->ssid, 
-            (strcmp(r->ssid, iid) == 0)			? "<pox>"STRING_POSTER"</pox>" : "", 
-            timetmp, 
-            crl, 
-            admin_ctrl,
-            /*do we cut long comment?*/
-            cut_cclong 							? c_content : content, 
-            /*thread state*/
-            (r->state & SAGE_THREAD && !reply) 	? "<red><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></red><br/>" : "", 
-            (r->state & LOCKED_THREAD) 			? "<red><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></red><br/>" : "", 
-            !(r->state & NORMAL_DISPLAY) 		? "<red><b>&#10006;&nbsp;"STRING_THREAD_DELETED"</b></red><br/>" : "",
-            /*reply count*/
-            reply_count);
-    else
-        len = snprintf(tmp, 8192,
-            "<div>%s"
-                "<div %s>"
-                    "<div class='reply-header'>No.%d&nbsp;<ttt>%s</ttt>&nbsp;"
-                    "<span class='tmsc'><ssid>%s%s</ssid> "STRING_POSTED_AT" %s</span>&nbsp;%s"
-                    "</div>"
-                    "<div class='alert-box'>"STRING_THREAD_DELETED2"</div>"
-                "</div>"
-            "</div>",
-            /*place holder*/
-            reply                               ? "<div class='holder'>&nbsp;&nbsp;</div>" : "", 
-            reply                               ? "class='thread header'" : "class='thread'",
-            r->threadID, thread_title, 
-            // reply                               ? "" : "ID:",
-            (strcmp(r->ssid, "Admin") == 0)     ? "<red>"STRING_ADMIN"</red>" : r->ssid, 
-            (strcmp(r->ssid, iid) == 0)         ? "<pox>"STRING_POSTER"</pox>" : "", 
-            timetmp, 
-            admin_ctrl);
+    // if (r->state & NORMAL_DISPLAY || admin_view)
+    //     len = snprintf(tmp, 8192,
+    //         "<div>%s"
+    //         	"<div %s>"
+    //         		/*image*/
+    //         		"%s"
+    //         		/*thread header*/
+    //         		"<div class='reply-header'>%s&nbsp;<ttt>%s</ttt>&nbsp;"
+    //         		"<span class='tmsc'><ssid>%s%s</ssid> "STRING_POSTED_AT" %s</span>&nbsp;%s%s"
+    //         		"</div>"
+    //         		/*thread comment*/
+    //         		"<div class='quote'>%s</div>"
+    // 		        "%s"
+    // 		        "%s"
+    // 		        "%s"
+    // 		        "%s"
+    //         	"</div>"
+    //         "</div>",
+    //         /*place holder*/
+    //         reply 								? "<div class='holder'><holder></holder></div>" : "", 
+    //         reply 								? "class='thread header'" : "class='thread'",
+    //         /*image*/
+    //         display_image, 
+    //         ref_or_link, thread_title, 
+    //         // reply                               ? "" : "ID:",
+    //         (strcmp(r->ssid, "Admin") == 0) 	? "<red>"STRING_ADMIN"</red>" : r->ssid, 
+    //         (strcmp(r->ssid, iid) == 0)			? "<pox>"STRING_POSTER"</pox>" : "", 
+    //         timetmp, 
+    //         crl, 
+    //         admin_ctrl,
+    //         /*do we cut long comment?*/
+    //         cut_cclong 							? c_content : content, 
+    //         /*thread state*/
+    //         (r->state & SAGE_THREAD && !reply) 	? "<red><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></red><br/>" : "", 
+    //         (r->state & LOCKED_THREAD) 			? "<red><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></red><br/>" : "", 
+    //         !(r->state & NORMAL_DISPLAY) 		? "<red><b>&#10006;&nbsp;"STRING_THREAD_DELETED"</b></red><br/>" : "",
+    //         /*reply count*/
+    //         reply_count);
+    // else
+    //     len = snprintf(tmp, 8192,
+    //         "<div>%s"
+    //             "<div %s>"
+    //                 "<div class='reply-header'>No.%d&nbsp;<ttt>%s</ttt>&nbsp;"
+    //                 "<span class='tmsc'><ssid>%s%s</ssid> "STRING_POSTED_AT" %s</span>&nbsp;%s"
+    //                 "</div>"
+    //                 "<div class='alert-box'>"STRING_THREAD_DELETED2"</div>"
+    //             "</div>"
+    //         "</div>",
+    //         /*place holder*/
+    //         reply                               ? "<div class='holder'>&nbsp;&nbsp;</div>" : "", 
+    //         reply                               ? "class='thread header'" : "class='thread'",
+    //         r->threadID, thread_title, 
+    //         // reply                               ? "" : "ID:",
+    //         (strcmp(r->ssid, "Admin") == 0)     ? "<red>"STRING_ADMIN"</red>" : r->ssid, 
+    //         (strcmp(r->ssid, iid) == 0)         ? "<pox>"STRING_POSTER"</pox>" : "", 
+    //         timetmp, 
+    //         admin_ctrl);
 
-    mg_send_data(conn, tmp, len);
+    // mg_send_data(conn, tmp, len);
+
+    HTMLTemplate *ht = templates_manager.invoke_template("single_thread"); //new HTMLTemplate(single_thread_base);
+
+    map<string, bool> stats;
+    map<string, string> vars;
+
+    stats["reply"] 						= reply;
+    stats["show_reply"] 				= show_reply;
+    stats["archive"] 					= archiveMode;
+    stats["normal_display"] 			= r->state & NORMAL_DISPLAY || admin_view;
+    stats["thread_poster_is_admin"] 	= (strcmp(r->ssid, "Admin") == 0);
+    stats["thread_poster_is_sameone"] 	= (strcmp(r->ssid, iid) == 0);
+    stats["sage"] 						= (r->state & SAGE_THREAD && !reply);
+    stats["lock"] 						= (r->state & LOCKED_THREAD);
+    stats["delete"] 					= !(r->state & NORMAL_DISPLAY);
+    stats["show_admin"]					= admin_view;
+    if (strlen(r->imgSrc) >= 4){
+    	string fname(r->imgSrc);
+        vars["THREAD_IMAGE"]			= fname;
+
+        if (endsWith(fname, ".jpg") || endsWith(fname, ".gif") || endsWith(fname, ".png")){
+        	stats["image_attached"]		= true;
+	        if(cut_image){
+	            struct stat st;
+	            stat(("images/" + fname).c_str(), &st);
+	            stats["show_size_only"] = true;
+	            vars["THREAD_IMAGE_SIZE"] = to_string((int)(st.st_size / 1024));
+	        }
+	        else{
+	        	stats["show_full_image"] = true;
+                vars["THREAD_THUMB_PREFIX"] = string(thumbPrefix);
+	        }
+	    }else{
+	    	stats["file_attached"]		= true;
+        }
+    }
+    if(r->childThread && !cut_count){
+        struct Thread* c = readThread_(pDb, r->childThread);
+     	stats["show_num_replies"]		= true;
+        vars["NUM_REPLIES"] 			= to_string(c->childCount);
+        delete c;
+    }
+
+    vars["THREAD_POSTER"] 				= string(r->ssid);
+    vars["THREAD_NO"] 					= to_string(r->threadID);
+    vars["THREAD_CONTENT"] 				= string(cut_cclong ? c_content : content);
+    vars["THREAD_TITLE"] 				= string((reply && strcmp(r->author, STRING_UNTITLED) == 0) ? "" : r->author);
+    vars["THREAD_POST_TIME"] 			= string(timetmp);
+    vars["THREAD_IP"] 					= string(r->email);
+
+    mg_printf_data(conn, "%s", ht->build(vars, stats).c_str());
 
     if(content) delete [] content;
+    delete ht;
 }
 
 void requestAdminConsole(mg_connection* conn, struct Thread* r){
-    char admin_ctrl[1024];
-    int len = sprintf(admin_ctrl, "<br><span>"
-                        "<a class='wp-btn' href='/sage/%d' title='Sage Thread'>&#128078;</a>"
-                        "<a class='wp-btn' href='/lock/%d' title='Lock Thread'>&#128274;</a>"
-                        "<a class='wp-btn' href='/delete/%d' title='Del Thread'>&#128640;</a>"
-                        "<a class='wp-btn' href='/rename/%s'>"STRING_ADMIN_DEL_IMG"</a>"
-                        "<a class='wp-btn' href='/list/ip/%s'>"STRING_ADMIN_LIST_IP"</a>"
-                        "<a class='wp-btn' href='/ban/ip/%s'>"STRING_ADMIN_BAN_IP"</a>"
-                        "<a class='wp-btn' href='http://ip.chinaz.com/?IP=%s'>"STRING_ADMIN_WHERE_IP"</a>"
-                        "<a class='wp-btn' href='/list/%s'>"STRING_ADMIN_LIST_ID"</a>"
-                        "<a class='wp-btn' href='/ban/%s'>"STRING_ADMIN_BAN_ID"</a>"
-                        "<a class='wp-btn' href='/state/%d/%d'>"STRING_ADMIN_RESTORE"</a>"
-                        "</span>",
-                        r->threadID, r->threadID, r->threadID, r->imgSrc, 
-                        r->email, r->email, r->email,
-                        r->ssid, r->ssid,
-                        r->threadID, r->state & MAIN_THREAD ? 5 : 3);
+    // char admin_ctrl[1024];
+    // int len = sprintf(admin_ctrl, "<br><span>"
+    //                     "<a class='wp-btn' href='/sage/%d' title='Sage Thread'>&#128078;</a>"
+    //                     "<a class='wp-btn' href='/lock/%d' title='Lock Thread'>&#128274;</a>"
+    //                     "<a class='wp-btn' href='/delete/%d' title='Del Thread'>&#128640;</a>"
+    //                     "<a class='wp-btn' href='/rename/%s'>"STRING_ADMIN_DEL_IMG"</a>"
+    //                     "<a class='wp-btn' href='/list/ip/%s'>"STRING_ADMIN_LIST_IP"</a>"
+    //                     "<a class='wp-btn' href='/ban/ip/%s'>"STRING_ADMIN_BAN_IP"</a>"
+    //                     "<a class='wp-btn' href='http://ip.chinaz.com/?IP=%s'>"STRING_ADMIN_WHERE_IP"</a>"
+    //                     "<a class='wp-btn' href='/list/%s'>"STRING_ADMIN_LIST_ID"</a>"
+    //                     "<a class='wp-btn' href='/ban/%s'>"STRING_ADMIN_BAN_ID"</a>"
+    //                     "<a class='wp-btn' href='/state/%d/%d'>"STRING_ADMIN_RESTORE"</a>"
+    //                     "</span>",
+    //                     r->threadID, r->threadID, r->threadID, r->imgSrc, 
+    //                     r->email, r->email, r->email,
+    //                     r->ssid, r->ssid,
+    //                     r->threadID, r->state & MAIN_THREAD ? 5 : 3);
+	
+	HTMLTemplate *ht = templates_manager.invoke_template("admin_console");
+    // mg_send_data(conn, admin_ctrl, len);
 
-    mg_send_data(conn, admin_ctrl, len);
+    mg_printf_data(conn, ht->var("THREAD_NO", to_string(r->threadID)) \
+    	.var("THREAD_IP", string(r->email)) \
+    	.var("THREAD_POSTER", string(r->ssid)) \
+    	.var("THREAD_IMAGE", string(r->imgSrc)) \
+    	.var("THREAD_NEW_STATE", string((r->state & MAIN_THREAD) ? "5" : "3")) \
+		.build2().c_str());
+    delete ht;
 }
 
 void showGallery(mg_connection* conn, cclong startID, cclong endID){
@@ -573,16 +634,22 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
                     for (int i = vt.size() - 1; i >= 0; i--){
                         sendThread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid);
                         delete vt[i];
-                        if(i == vt.size() - 1)
-                            mg_printf_data(conn, 
-                                "<div>"
-                                    "<div class='holder'>&nbsp;&nbsp;</div>"
-                                    "<div class='header'>"
-                                        "<div class='reply-header round'>"
-                                            "<a class='dcyan' href='/thread/%d'>&#128172;&nbsp;"SRTING_THREAD_REPLIES_HIDE"</a>"
-                                        "</div>"
-                                    "</div>"
-                                "</div>", oldr->threadID, first_thread->childCount - 5);
+                        if(i == vt.size() - 1){
+                        	HTMLTemplate *ht = templates_manager.invoke_template("expand_hidden_replies");
+                            // mg_printf_data(conn, 
+                            //     "<div>"
+                            //         "<div class='holder'>&nbsp;&nbsp;</div>"
+                            //         "<div class='header'>"
+                            //             "<div class='reply-header round'>"
+                            //                 "<a class='dcyan' href='/thread/%d'>&#128172;&nbsp;"SRTING_THREAD_REPLIES_HIDE"</a>"
+                            //             "</div>"
+                            //         "</div>"
+                            //     "</div>", oldr->threadID, first_thread->childCount - 5);
+                            mg_printf_data(conn, "%s", ht->var("THREAD_NO", to_string(oldr->threadID)) \
+                            	.var("NUM_HIDDEN_REPLIES", to_string(first_thread->childCount - 5)) \
+                            	.build2().c_str());
+                            delete ht;
+                        }
                     }
                 }
 
@@ -641,13 +708,18 @@ void showThread(mg_connection* conn, cclong id, bool reverse = false){
     char iid[10];
     strcpy(iid, r->ssid);
 
-    char zztmp[512] = {0};
-    int len = sprintf(zztmp, "/post_reply/%d", id); zztmp[len] = 0;
+    // char zztmp[512] = {0};
+    // int len = sprintf(zztmp, "/post_reply/%d", id); zztmp[len] = 0;
 
     mg_printf_data(conn, "<a class='wp-btn' href='/%s/%d'>%s</a><br>", 
                 reverse ? "thread" : "daerht", id, reverse ? STRING_VIEW_ASCEND : STRING_VIEW_DESCEND);
 
-    if(!archiveMode) mg_printf_data(conn, html_form, zztmp, "postform", STRING_REPLY_TO_THREAD);
+    if(!archiveMode) {
+    	HTMLTemplate *ht = templates_manager.invoke_template("post_form");
+    	mg_printf_data(conn, "%s", ht->var("THREAD_NO", to_string(id)).stat("reply_to_thread", true).build2().c_str());
+    	// mg_printf_data(conn, html_form, zztmp, "postform", STRING_REPLY_TO_THREAD);
+    	delete ht;
+    }
     if(admin_view) ADMIN_VIEW();
         
     if (r->childThread) {
@@ -920,6 +992,7 @@ void postSomething(mg_connection* conn, const char* uri){
         //image or comment or both
         if (strcmp(var2, "") == 0 && !fileAttached) {
             printMsg(conn, STRING_EMPTY_COMMENT);
+            logLog("'%s'", dump_name);
             return;
         }else if (strcmp(var2, "") == 0 && fileAttached){
             strcpy(var2, STRING_UNCOMMENTED);
@@ -955,42 +1028,6 @@ void postSomething(mg_connection* conn, const char* uri){
             strcpy(ssid, renewCookie(username));
         }
     }
-    // if (strcmp(ssid, "") == 0){
-    //  //user doesn't have a cookie, we give one
-    //  if (stopNewcookie){
-    //      printMsg(conn, STRING_STOP_COOKIE);
-    //      return;
-    //  }
-    //  else{
-    //      strcpy(username, giveNewCookie(conn));
-    //      strcpy(ssid, renewCookie(username));
-    //  }
-    // }
-    // else{
-    //  vector<string> tmp = split(string(ssid), string("|"));
-    //  if (tmp.size() != 2){
-    //      printMsg(conn, STRING_INVALID_COOKIE);
-    //      return;
-    //  }else{
-    //      strncpy(username, tmp[0].c_str(), 10);
-        
-    //      if (banlist.find(tmp[0]) != banlist.end()){
-    //          //this id is banned, so we destory it
-    //          destoryCookie(conn);
-    //          logLog("Cookie Destoryed: '%s'", ssid);
-    //          printMsg(conn, STRING_YOUR_ID_IS_BANNED);
-    //          return;
-    //      }
-
-    //      char *testssid = generateSSID(username);
-    //      if (strcmp(testssid, tmp[1].c_str()) != 0){
-    //          printMsg(conn, STRING_INVALID_COOKIE);
-    //          delete [] testssid;
-    //          return;
-    //      }
-    //      delete [] testssid;
-    //  }
-    // }
 
     if (strcmp(var3, adminPassword) == 0) strcpy(username, "Admin");
     if (admin_ctrl) strcpy(username, "Admin");
@@ -1077,7 +1114,14 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
 		printHeader(conn, (STRING_PAGE + num).c_str());
     }
 
-    if(!archiveMode) mg_printf_data(conn, html_form, "/post_thread", "hiding", STRING_NEW_THREAD);
+    if(!archiveMode) {
+    	HTMLTemplate *ht = templates_manager.invoke_template("post_form");
+    	string tmp = ht->stat("post_new_thread", true).build2();
+    	// logLog("%s", tmp.c_str());
+    	mg_printf_data(conn, "%s", tmp.c_str());
+    	delete ht;
+    }
+    // } mg_printf_data(conn, html_form, "/post_thread", "hiding", STRING_NEW_THREAD);
 
     clock_t startc = clock();
 
@@ -1135,7 +1179,11 @@ static void sendReply(struct mg_connection *conn) {
             printMsg(conn, STRING_NEW_THREAD_SUCCESS);
         else{
             printHeader(conn);
-            mg_printf_data(conn, html_redirtothread, id, id, id);
+            // mg_printf_data(conn, html_redirtothread, id, id, id);
+            HTMLTemplate *ht = templates_manager.invoke_template("info_page");
+            mg_printf_data(conn, "%s", ht->var("THREAD_NO", to_string(id)).stat("return_page", true).build2().c_str());
+            delete ht;
+
             printFooter(conn);
         }   //post successfully page
     }
@@ -1623,7 +1671,16 @@ int main(int argc, char *argv[]){
     char zPath[64] = "default.db"; 
     log_file = stdout;
 
-    // logLog("%ld", BUILD_DATE);
+
+    templates_manager \
+    .add_template("single_thread") \
+    .add_template("expand_hidden_replies") \
+    .add_template("admin_console") \
+    .add_template("post_form") \
+    .add_template("site_header") \
+    .add_template("site_footer") \
+    .add_template("info_page");
+
     for (int i = 0; i < argc; ++i){
         // if(TEST_ARG("--help", "-h")){
         //     puts(help_text);

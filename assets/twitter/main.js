@@ -66,6 +66,7 @@ function getNewData(new_page){
 		}
 
 		var e = document.createElement('div');
+		e.setAttribute('style', 'text-align:center');
 		var html = "";
 
 		for(var i = cur_twi_page - 1; i > cur_twi_page - 5 && i >= 0; --i){
@@ -78,6 +79,8 @@ function getNewData(new_page){
 			html += "<a class='pager' href='javascript:getNewData(" + i + ")'>" + (i + 1) + "</a>";
 		}
 
+		html += '<br style="clear:both">';
+
 		e.innerHTML = html;
 
 		tl.appendChild(e);
@@ -89,6 +92,8 @@ function getNewData(new_page){
 			document.getElementById('total-tweets-count').innerHTML = 
 				"一共存档了 " + j.Rows + " 篇推文，上一次存档时间：" + parseInt((t-d)/1000) + " 秒之前";
 		});
+
+		window.scrollTo(0,0);
 	});
 	
 }
