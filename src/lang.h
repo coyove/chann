@@ -38,7 +38,7 @@
 #define STRING_THREAD_DELETED 		"该串已被删除"
 #define STRING_THREAD_DELETED2 		"Access Denied"
 #define SRTING_THREAD_REPLIES_HIDE 	"回复有 %d 条被省略, 点击查看..."
-#define SRTING_THREAD_REPLIES 		"%d 条回复"
+#define SRTING_THREAD_REPLIES 		" 条回复"
 #define STRING_NEXT_PAGE 			"&#187;"
 #define STRING_PAGE 				"页 "
 #define STRING_GALLERY_PAGE 		"相册"
