@@ -1,7 +1,4 @@
 ﻿//unsafe
-#define _CRT_SECURE_NO_WARNINGS
-#define NS_ENABLE_SSL
-// #define NS_ENABLE_DEBUG
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,6 +10,7 @@
 #include <unordered_set>
 #include <deque>
 #include <fstream>
+#include <chrono>
 #include <sys/stat.h>
 #include <signal.h>
 
@@ -49,7 +47,7 @@ int     maxPageShown    = 0;
 int     autoLockThread  = 1000;
 bool    stopNewcookie   = false;    //stop delivering new cookies
 bool    stopCheckIP     = false;    //stop checking ip
-bool    useXFF          = false;
+// bool    useXFF          = false;
 bool    archiveMode     = false;
 FILE*   log_file;                   //log file
 
@@ -61,67 +59,41 @@ deque<struct History *> chatHistory;
 
 struct mg_server *server;
 
-TemplateManager templates_manager;
+TemplateManager templates;
 
 #define TEST_ARG(b1, b2) (strcmp(argv[i], b1) == 0 || strcmp(argv[i], b2) == 0)
-
-#define ADMIN_VIEW() mg_printf_data(conn, "<script type='text/javascript'>var e=document.getElementById('slogan');if(e){e.innerText=e.innerHTML;}document.getElementById('opt').className='';</script>")
+#define HAS_KEY(x) actions.find(x) != actions.end()
 
 static const unsigned long long BUILD_DATE = __BUILD_DATE;
 
-// Linux only
-unsigned long readMemusage(){
+const char * get_client_ip(mg_connection* conn){
+    const char * xff = mg_get_header(conn, "X-Forwarded-For");
+    return (xff ? xff : conn->remote_ip);
+}
+
+void site_footer(mg_connection* conn, float e_time = 0.0f){
+    time_t c; 
+    time(&c);
+
     unsigned long dummy;
-    unsigned long res;
+    unsigned long res = 0;
 
     FILE *f = fopen("/proc/self/statm", "r");
-    if(!f) return 0;
-    fscanf(f,"%ld %ld %ld %ld %ld %ld %ld", &dummy, &res, &dummy, &dummy, &dummy, &dummy, &dummy);
-    fclose(f);
-    return res;
-}
-
-const char * getClientIP(mg_connection* conn){
-    const char * xff = mg_get_header(conn, "X-Forwarded-For");
-    return useXFF ? (xff ? xff : conn->remote_ip) : conn->remote_ip;
-}
-
-void printFooter(mg_connection* conn, float e_time = 0.0f){
-    char *footer = readString(pDb, "footer");
-    if(footer){
-        mg_printf_data(conn, "<div id='footer'>%s</div>", footer);
-        delete [] footer;
+    if(f){
+        fscanf(f,"%ld %ld %ld %ld %ld %ld %ld", &dummy, &res, &dummy, &dummy, &dummy, &dummy, &dummy);
+        fclose(f);
     }
     
-    char footer2[256] = {0};
-    time_t c;
-    time(&c);
-    sprintf(footer2, "<small title='C:%d,T:%d,M:%ldkb'>Proudly powered by <a href='https://github.com/coyove/cchan' target=_blank>CCHAN</a> in %.2fs</small>", 
-                (stopNewcookie? 0 : 1), (int)((c - gStartupTime) / 3600), readMemusage() * 4, e_time);
-
-    // mg_printf_data(conn, html_footer, footer2, BUILD_DATE);
-    HTMLTemplate *ht = templates_manager.invoke_template("site_footer");
-    mg_printf_data(conn, "%s", ht->var("BUILD_DATE", to_string(BUILD_DATE)).var("LEFT_FOOTER", string(footer2)).build2().c_str());
-    delete ht;
-}
-
-void printHeader(mg_connection* conn, const char* suffix = ""){
-    // char * header = readString(pDb, "header");
-    char site_title[128];
-    strcpy(site_title, siteTitle);
-    if(archiveMode) strcat(site_title, "::"STRING_ARCHIVE);
-    strcat(site_title, " - ");
-    strcat(site_title, suffix);
-
-    HTMLTemplate *ht = templates_manager.invoke_template("site_header");
-
-    mg_printf_data(conn, "%s", ht->var("SITE_TITLE", string(site_title)).build2().c_str());
-    // mg_printf_data(conn, html_header, site_title);
-    delete ht;
+    templates.invoke("site_footer") \
+        .var("COOKIE", stopNewcookie? "0" : "1") \
+        .var("RUNNING_TIME", (int)((c - gStartupTime) / 3600)) \
+        .var("MEMORY", res * 4) \
+        .var("TIME", (int)(e_time * 1000)) \
+        .pipe_to(conn).destory();
 }
 
 void printMsg(mg_connection* conn, const char* msg, ...){
-    printHeader(conn);
+    templates.invoke("site_header").pipe_to(conn).destory();
     
     char tmpbuf[512]; //=w=
     va_list argptr;
@@ -129,11 +101,10 @@ void printMsg(mg_connection* conn, const char* msg, ...){
     vsprintf(tmpbuf, msg, argptr);
     va_end(argptr);
 
-    HTMLTemplate *ht = templates_manager.invoke_template("info_page");
-    mg_printf_data(conn, "%s", ht->var("CONTENT", string(tmpbuf)).stat("info_page", true).build2().c_str());
-    delete ht;
+    templates.invoke("info_page") \
+        .var("CONTENT", string(tmpbuf)).toggle("info_page").pipe_to(conn).destory();
 
-    printFooter(conn);
+    site_footer(conn);
 }
 
 bool checkIP(mg_connection* conn, bool verbose = false){
@@ -141,7 +112,7 @@ bool checkIP(mg_connection* conn, bool verbose = false){
 
     time_t rawtime;
     time(&rawtime);
-    const char * cip = getClientIP(conn);
+    const char * cip = get_client_ip(conn);
     string sip(cip);
     time_t lasttime = IPAccessList[sip];
     
@@ -194,49 +165,35 @@ void doThread(mg_connection* conn, cclong tid, char STATE){
 #define SEND_CUT_REPLY_COUNT    16
 
 void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool admin_view = false, char* iid = ""){
-    // if (!(r->state & NORMAL_DISPLAY) && !admin_view) return;
-#ifdef __MINGW64__
-    struct tm *ti;
-    char tmp[8192] = {'\0'};
-    int len;
-
-    ti = localtime(&(r->date));
-    char timetmp[64];
-    strftime(timetmp, 64, TIME_FORMAT, ti);
-    delete ti;
-#else
-    struct tm ti;
+    struct tm post_date;
     struct tm today;
-    char tmp[8192] = {'\0'};
-    int len;
-
-    localtime_r(&(r->date), &ti);
     time_t now = time(NULL);
+
+    localtime_r(&(r->date), &post_date);
     localtime_r(&now, &today);
 
     char std_time[64];
-    strftime(std_time, 64, " %X", &ti);
+    strftime(std_time, 64, "%X", &post_date);
 
     //the date and time
     char timetmp[64];
     time_t diff = now - (today.tm_sec + today.tm_min * 60 + today.tm_hour * 3600) -
-                  (r->date - (ti.tm_sec + ti.tm_min * 60 + ti.tm_hour * 3600));
+                  (r->date - (post_date.tm_sec + post_date.tm_min * 60 + post_date.tm_hour * 3600));
     cclong diff_day = diff / 3600 / 24;
 
-    switch(diff_day){
-        case 0: strcpy(timetmp, STRING_TODAY); strcat(timetmp, std_time); break;
-        case 1: strcpy(timetmp, STRING_YESTERDAY); strcat(timetmp, std_time); break;
-        case 2: strcpy(timetmp, STRING_DAY_BEFORE_YESTERDAY); strcat(timetmp, std_time); break;
-        default:
-            strftime(timetmp, 64, TIME_FORMAT, &ti);
-    }
-#endif
+    // switch(diff_day){
+    //     case 0: strcpy(timetmp, STRING_TODAY); strcat(timetmp, std_time); break;
+    //     case 1: strcpy(timetmp, STRING_YESTERDAY); strcat(timetmp, std_time); break;
+    //     case 2: strcpy(timetmp, STRING_DAY_BEFORE_YESTERDAY); strcat(timetmp, std_time); break;
+    //     default:
+    //         strftime(timetmp, 64, TIME_FORMAT, &ti);
+    // }
 
-    bool reply 		= display_state & SEND_IS_REPLY;
+    bool reply      = display_state & SEND_IS_REPLY;
     bool show_reply = display_state & SEND_SHOW_REPLY_LINK;
     bool cut_cclong = display_state & SEND_CUT_LONG_COMMENT;
-    bool cut_image 	= display_state & SEND_CUT_IMAGE;
-    bool cut_count 	= display_state & SEND_CUT_REPLY_COUNT;
+    bool cut_image  = display_state & SEND_CUT_IMAGE;
+    bool cut_count  = display_state & SEND_CUT_REPLY_COUNT;
 
     // char crl[128] = {'\0'};
     // if(archiveMode)
@@ -263,35 +220,35 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
     // char display_image[256] = {'\0'};
 
     // if (strlen(r->imgSrc) >= 4){
-    // 	string fname(r->imgSrc);
+    //  string fname(r->imgSrc);
         
     //     if (endsWith(fname, ".jpg") || endsWith(fname, ".gif") || endsWith(fname, ".png")){
-	   //      if(cut_image){
-	   //          struct stat st;
-	   //          stat(("images/" + fname).c_str(), &st);
+       //      if(cut_image){
+       //          struct stat st;
+       //          stat(("images/" + fname).c_str(), &st);
 
-	   //          snprintf(display_image, 255, 
-	   //          	"<div class='img'>"
-	   //          		"<a id='img-%d' href='javascript:void(0)' onclick='exim(\"img-%d\",\"%s\")'>["STRING_VIEW_IMAGE" (%d kb)]</a>"
-	   //          	"</div>", 
-	   //              r->threadID, r->threadID, r->imgSrc, st.st_size / 1024);
-	   //      }
-	   //      else{
+       //          snprintf(display_image, 255, 
+       //           "<div class='img'>"
+       //               "<a id='img-%d' href='javascript:void(0)' onclick='exim(\"img-%d\",\"%s\")'>["STRING_VIEW_IMAGE" (%d kb)]</a>"
+       //           "</div>", 
+       //              r->threadID, r->threadID, r->imgSrc, st.st_size / 1024);
+       //      }
+       //      else{
                 
-	   //          snprintf(display_image, 255, 
-	   //              	"<div class='img'>"
-	   //              		"<a id='img-%d' href='javascript:void(0)' onclick=\"enim('img-%d','/images/%s','%s%s')\">"
-	   //              			"<img class='%s' src='%s%s'/>"
-	   //              		"</a>"
-	   //              	"</div>", 
+       //          snprintf(display_image, 255, 
+       //               "<div class='img'>"
+       //                   "<a id='img-%d' href='javascript:void(0)' onclick=\"enim('img-%d','/images/%s','%s%s')\">"
+       //                       "<img class='%s' src='%s%s'/>"
+       //                   "</a>"
+       //               "</div>", 
     //                     r->threadID, r->threadID, r->imgSrc, thumbPrefix, r->imgSrc,
     //                     reply ? "img-s" : "img-n", thumbPrefix, r->imgSrc);
-	   //      }
-	   //  }else{
-	   //  	snprintf(display_image, 255, 
-	   //          	"<div class='img file'>"
-	   //          		"<a class='wp-btn' href='/images/%s'>"STRING_VIEW_FILE"</a>"
-	   //          	"</div>", r->imgSrc);
+       //      }
+       //  }else{
+       //   snprintf(display_image, 255, 
+       //           "<div class='img file'>"
+       //               "<a class='wp-btn' href='/images/%s'>"STRING_VIEW_FILE"</a>"
+       //           "</div>", r->imgSrc);
     //     }
     // }
 
@@ -316,39 +273,39 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
     // if (r->state & NORMAL_DISPLAY || admin_view)
     //     len = snprintf(tmp, 8192,
     //         "<div>%s"
-    //         	"<div %s>"
-    //         		/*image*/
-    //         		"%s"
-    //         		/*thread header*/
-    //         		"<div class='reply-header'>%s&nbsp;<ttt>%s</ttt>&nbsp;"
-    //         		"<span class='tmsc'><ssid>%s%s</ssid> "STRING_POSTED_AT" %s</span>&nbsp;%s%s"
-    //         		"</div>"
-    //         		/*thread comment*/
-    //         		"<div class='quote'>%s</div>"
-    // 		        "%s"
-    // 		        "%s"
-    // 		        "%s"
-    // 		        "%s"
-    //         	"</div>"
+    //          "<div %s>"
+    //              /*image*/
+    //              "%s"
+    //              /*thread header*/
+    //              "<div class='reply-header'>%s&nbsp;<ttt>%s</ttt>&nbsp;"
+    //              "<span class='tmsc'><ssid>%s%s</ssid> "STRING_POSTED_AT" %s</span>&nbsp;%s%s"
+    //              "</div>"
+    //              /*thread comment*/
+    //              "<div class='quote'>%s</div>"
+    //              "%s"
+    //              "%s"
+    //              "%s"
+    //              "%s"
+    //          "</div>"
     //         "</div>",
     //         /*place holder*/
-    //         reply 								? "<div class='holder'><holder></holder></div>" : "", 
-    //         reply 								? "class='thread header'" : "class='thread'",
+    //         reply                                ? "<div class='holder'><holder></holder></div>" : "", 
+    //         reply                                ? "class='thread header'" : "class='thread'",
     //         /*image*/
     //         display_image, 
     //         ref_or_link, thread_title, 
     //         // reply                               ? "" : "ID:",
-    //         (strcmp(r->ssid, "Admin") == 0) 	? "<red>"STRING_ADMIN"</red>" : r->ssid, 
-    //         (strcmp(r->ssid, iid) == 0)			? "<pox>"STRING_POSTER"</pox>" : "", 
+    //         (strcmp(r->ssid, "Admin") == 0)  ? "<red>"STRING_ADMIN"</red>" : r->ssid, 
+    //         (strcmp(r->ssid, iid) == 0)          ? "<pox>"STRING_POSTER"</pox>" : "", 
     //         timetmp, 
     //         crl, 
     //         admin_ctrl,
     //         /*do we cut long comment?*/
-    //         cut_cclong 							? c_content : content, 
+    //         cut_cclong                           ? c_content : content, 
     //         /*thread state*/
-    //         (r->state & SAGE_THREAD && !reply) 	? "<red><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></red><br/>" : "", 
-    //         (r->state & LOCKED_THREAD) 			? "<red><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></red><br/>" : "", 
-    //         !(r->state & NORMAL_DISPLAY) 		? "<red><b>&#10006;&nbsp;"STRING_THREAD_DELETED"</b></red><br/>" : "",
+    //         (r->state & SAGE_THREAD && !reply)   ? "<red><b>&#128078;&nbsp;"STRING_THREAD_SAGED"</b></red><br/>" : "", 
+    //         (r->state & LOCKED_THREAD)           ? "<red><b>&#128274;&nbsp;"STRING_THREAD_LOCKED"</b></red><br/>" : "", 
+    //         !(r->state & NORMAL_DISPLAY)         ? "<red><b>&#10006;&nbsp;"STRING_THREAD_DELETED"</b></red><br/>" : "",
     //         /*reply count*/
     //         reply_count);
     // else
@@ -373,54 +330,62 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
 
     // mg_send_data(conn, tmp, len);
 
-    HTMLTemplate *ht = templates_manager.invoke_template("single_thread"); //new HTMLTemplate(single_thread_base);
+    HTMLTemplate *ht = templates.invoke_pointer("single_thread");
 
     map<string, bool> stats;
     map<string, string> vars;
 
-    stats["reply"] 						= reply;
-    stats["show_reply"] 				= show_reply;
-    stats["archive"] 					= archiveMode;
-    stats["normal_display"] 			= r->state & NORMAL_DISPLAY || admin_view;
-    stats["thread_poster_is_admin"] 	= (strcmp(r->ssid, "Admin") == 0);
-    stats["thread_poster_is_sameone"] 	= (strcmp(r->ssid, iid) == 0);
-    stats["sage"] 						= (r->state & SAGE_THREAD && !reply);
-    stats["lock"] 						= (r->state & LOCKED_THREAD);
-    stats["delete"] 					= !(r->state & NORMAL_DISPLAY);
-    stats["show_admin"]					= admin_view;
+    stats["reply"]                      = reply;
+    stats["show_reply"]                 = show_reply;
+    stats["archive"]                    = archiveMode;
+    stats["normal_display"]             = r->state & NORMAL_DISPLAY || admin_view;
+    stats["thread_poster_is_admin"]     = (strcmp(r->ssid, "Admin") == 0);
+    stats["thread_poster_is_sameone"]   = (strcmp(r->ssid, iid) == 0);
+    stats["sage"]                       = (r->state & SAGE_THREAD && !reply);
+    stats["lock"]                       = (r->state & LOCKED_THREAD);
+    stats["delete"]                     = !(r->state & NORMAL_DISPLAY);
+    stats["show_admin"]                 = admin_view;
     if (strlen(r->imgSrc) >= 4){
-    	string fname(r->imgSrc);
-        vars["THREAD_IMAGE"]			= fname;
+        string fname(r->imgSrc);
+        vars["THREAD_IMAGE"]            = fname;
 
         if (endsWith(fname, ".jpg") || endsWith(fname, ".gif") || endsWith(fname, ".png")){
-        	stats["image_attached"]		= true;
-	        if(cut_image){
-	            struct stat st;
-	            stat(("images/" + fname).c_str(), &st);
-	            stats["show_size_only"] = true;
-	            vars["THREAD_IMAGE_SIZE"] = to_string((int)(st.st_size / 1024));
-	        }
-	        else{
-	        	stats["show_full_image"] = true;
+            stats["image_attached"]     = true;
+            if(cut_image){
+                struct stat st;
+                stat(("images/" + fname).c_str(), &st);
+                stats["show_size_only"] = true;
+                vars["THREAD_IMAGE_SIZE"] = to_string((int)(st.st_size / 1024));
+            }
+            else{
+                stats["show_full_image"] = true;
                 vars["THREAD_THUMB_PREFIX"] = string(thumbPrefix);
-	        }
-	    }else{
-	    	stats["file_attached"]		= true;
+            }
+        }else{
+            stats["file_attached"]      = true;
         }
     }
     if(r->childThread && !cut_count){
         struct Thread* c = readThread_(pDb, r->childThread);
-     	stats["show_num_replies"]		= true;
-        vars["NUM_REPLIES"] 			= to_string(c->childCount);
+        stats["show_num_replies"]       = true;
+        vars["NUM_REPLIES"]             = to_string(c->childCount);
         delete c;
     }
 
-    vars["THREAD_POSTER"] 				= string(r->ssid);
-    vars["THREAD_NO"] 					= to_string(r->threadID);
-    vars["THREAD_CONTENT"] 				= string(cut_cclong ? c_content : content);
-    vars["THREAD_TITLE"] 				= string((reply && strcmp(r->author, STRING_UNTITLED) == 0) ? "" : r->author);
-    vars["THREAD_POST_TIME"] 			= string(timetmp);
-    vars["THREAD_IP"] 					= string(r->email);
+    vars["THREAD_POSTER"]               = string(r->ssid);
+    vars["THREAD_NO"]                   = to_string(r->threadID);
+    vars["THREAD_CONTENT"]              = string(cut_cclong ? c_content : content);
+    vars["THREAD_TITLE"]                = string((reply && strcmp(r->author, STRING_UNTITLED) == 0) ? "" : r->author);
+    vars["THREAD_IP"]                   = string(r->email);
+    vars["THREAD_POST_TIME"]            = string(std_time);
+
+    if(diff_day >= 0 && diff_day <= 2){
+        stats["show_easy_date"]         = true;
+        vars["THREAD_POST_DATE"]        = to_string(diff_day);
+    }else{
+        strftime(timetmp, 64, TIME_FORMAT, &post_date);
+        vars["THREAD_POST_DATE"]        = string(timetmp);
+    }
 
     mg_printf_data(conn, "%s", ht->build(vars, stats).c_str());
 
@@ -446,17 +411,14 @@ void requestAdminConsole(mg_connection* conn, struct Thread* r){
     //                     r->email, r->email, r->email,
     //                     r->ssid, r->ssid,
     //                     r->threadID, r->state & MAIN_THREAD ? 5 : 3);
-	
-	HTMLTemplate *ht = templates_manager.invoke_template("admin_console");
-    // mg_send_data(conn, admin_ctrl, len);
-
-    mg_printf_data(conn, ht->var("THREAD_NO", to_string(r->threadID)) \
-    	.var("THREAD_IP", string(r->email)) \
-    	.var("THREAD_POSTER", string(r->ssid)) \
-    	.var("THREAD_IMAGE", string(r->imgSrc)) \
-    	.var("THREAD_NEW_STATE", string((r->state & MAIN_THREAD) ? "5" : "3")) \
-		.build2().c_str());
-    delete ht;
+    
+    templates.invoke("admin_console") \
+        .var("THREAD_NO", r->threadID) \
+        .var("THREAD_IP", r->email) \
+        .var("THREAD_POSTER", r->ssid) \
+        .var("THREAD_IMAGE", r->imgSrc) \
+        .var("THREAD_NEW_STATE", (r->state & MAIN_THREAD) ? "5" : "3") \
+        .pipe_to(conn).destory();
 }
 
 void showGallery(mg_connection* conn, cclong startID, cclong endID){
@@ -469,12 +431,13 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
     cclong totalThreads = r->childCount;
     cclong totalPages = 100;
 
-    char *slogan = readString(pDb, "slogan");
-    if(slogan) {
-        mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
-        delete [] slogan;
-    }
-    if(admin_view) ADMIN_VIEW();
+    // char *slogan = readString(pDb, "slogan");
+    // if(slogan) {
+    //     mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
+    //     delete [] slogan;
+    // }
+    templates.invoke("site_slogan").pipe_to(conn).destory();
+    // if(admin_view) ADMIN_VIEW();
 
     for(cclong i = totalThreads; i > 0; --i){
         delete r;
@@ -534,12 +497,13 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
     else
         totalPages = (cclong)(totalThreads / threadsPerPage) + 1;
 
-    char *slogan = readString(pDb, "slogan");
-    if(slogan) {
-        mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
-        delete [] slogan;
-    }
-    if(admin_view) ADMIN_VIEW();
+    // char *slogan = readString(pDb, "slogan");
+    // if(slogan) {
+    //     mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
+    //     delete [] slogan;
+    // }
+    templates.invoke("site_slogan").pipe_to(conn).destory();
+    // if(admin_view) ADMIN_VIEW();
 
     while (r->nextThread){
         cclong tmpid = r->nextThread;
@@ -635,7 +599,6 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
                         sendThread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid);
                         delete vt[i];
                         if(i == vt.size() - 1){
-                        	HTMLTemplate *ht = templates_manager.invoke_template("expand_hidden_replies");
                             // mg_printf_data(conn, 
                             //     "<div>"
                             //         "<div class='holder'>&nbsp;&nbsp;</div>"
@@ -645,10 +608,10 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
                             //             "</div>"
                             //         "</div>"
                             //     "</div>", oldr->threadID, first_thread->childCount - 5);
-                            mg_printf_data(conn, "%s", ht->var("THREAD_NO", to_string(oldr->threadID)) \
-                            	.var("NUM_HIDDEN_REPLIES", to_string(first_thread->childCount - 5)) \
-                            	.build2().c_str());
-                            delete ht;
+                            templates.invoke("expand_hidden_replies") \
+                                .var("THREAD_NO", oldr->threadID) \
+                                .var("NUM_HIDDEN_REPLIES", first_thread->childCount - 5) \
+                                .pipe_to(conn).destory();
                         }
                     }
                 }
@@ -692,10 +655,7 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
     // PRINT_TIME();
 }
 
-void showThread(mg_connection* conn, cclong id, bool reverse = false){
-    // clock_t startc = clock();
-
-    
+void showThread(mg_connection* conn, cclong id, bool reverse = false){ 
     struct Thread *r = readThread_(pDb, id); // get the root thread
     cclong c = 0;
 
@@ -715,12 +675,10 @@ void showThread(mg_connection* conn, cclong id, bool reverse = false){
                 reverse ? "thread" : "daerht", id, reverse ? STRING_VIEW_ASCEND : STRING_VIEW_DESCEND);
 
     if(!archiveMode) {
-    	HTMLTemplate *ht = templates_manager.invoke_template("post_form");
-    	mg_printf_data(conn, "%s", ht->var("THREAD_NO", to_string(id)).stat("reply_to_thread", true).build2().c_str());
-    	// mg_printf_data(conn, html_form, zztmp, "postform", STRING_REPLY_TO_THREAD);
-    	delete ht;
+        templates.invoke("post_form") \
+            .var("THREAD_NO", to_string(id)).toggle("reply_to_thread").pipe_to(conn).destory();
     }
-    if(admin_view) ADMIN_VIEW();
+    // if(admin_view) ADMIN_VIEW();
         
     if (r->childThread) {
         cclong r_childThread = r->childThread;
@@ -805,9 +763,7 @@ void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
 void userListThread(mg_connection* conn, bool admin_view = false){
     char *username = verifyCookie(conn);
 
-    printHeader(conn, STRING_MY_POSTS);
-    // mg_printf_data(conn, "<button class='wp-btn' onclick='cvtm(true);'>&#128198;&nbsp;"STRING_TIMESTAMP_DISPLAY"</button><br>"
-            // "<small>Example:<span class='tms hiding'>0</span><span class='tmsc'></span></small><hr>");
+    templates.invoke("site_header").toggle("my_post_page").pipe_to(conn).destory();
 
     if (username){
         struct Thread *r = readThread_(pDb, 0); 
@@ -826,11 +782,11 @@ void userListThread(mg_connection* conn, bool admin_view = false){
         }
         clock_t endc = clock();
         // PRINT_TIME();
-        printFooter(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
+        site_footer(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
 
         if(r) delete r;
     }else{
-        printFooter(conn);
+        site_footer(conn);
     }
 
     delete [] username;
@@ -889,7 +845,7 @@ void postSomething(mg_connection* conn, const char* uri){
         }
 
         if (strcmp(var_name, "input_file") == 0 && strcmp(file_name, "") != 0) {    //var4: the image attached (if has)
-        	// strcpy(var4, "");
+            // strcpy(var4, "");
             if (data_len > 1024 * 1024 * maxFileSize){
                 printMsg(conn, STRING_FILE_TOO_BIG);
                 return;
@@ -912,7 +868,7 @@ void postSomething(mg_connection* conn, const char* uri){
             else if (endsWith(sfname, ".torrent"))
                 ext = ".dat";
             else if (admin_ctrl){
-            	ext = sfname.substr(sfname.size() - 4);
+                ext = sfname.substr(sfname.size() - 4);
             }
             else{
                 printMsg(conn, STRING_INVALID_FILE);
@@ -949,10 +905,12 @@ void postSomething(mg_connection* conn, const char* uri){
         return;
     }
     if (strstr(var3, "url")){
-        printHeader(conn);
+        templates.invoke("site_header").toggle("upload_image_page").pipe_to(conn).destory();
+
         mg_printf_data(conn, "Image uploaded: <div style='background-color:white; padding: 1em;border: dashed 1px'>"
             "http://%s:%d/images/%s</div></div></body></html>", 
             conn->local_ip, conn->local_port, var4);
+
         logLog("Image Uploaded But Not As New Thread");
         return;
     }
@@ -973,14 +931,14 @@ void postSomething(mg_connection* conn, const char* uri){
         logLog("Admin Edited Thread No.%d", t->threadID);
         return;
     }
-    if (strstr(var3, "mod-") && admin_ctrl){    
-        string ent = split(string(var3), "-")[1];
-        writeString(pDb, (char*)ent.c_str(), var2, true);
+    // if (strstr(var3, "mod-") && admin_ctrl){    
+    //     string ent = split(string(var3), "-")[1];
+    //     writeString(pDb, (char*)ent.c_str(), var2, true);
         
-        printMsg(conn, "You have updated the %s", ent.c_str());
-        logLog("Var '%s' Updated", ent.c_str());
-        return;
-    }
+    //     printMsg(conn, "You have updated the %s", ent.c_str());
+    //     logLog("Var '%s' Updated", ent.c_str());
+    //     return;
+    // }
     
     char ipath[64]; FILE *fp; struct stat st;
     sprintf(ipath, "images/%s", var3);
@@ -990,13 +948,13 @@ void postSomething(mg_connection* conn, const char* uri){
         // strncpy(var4, var3, 16);
     // else{
         //image or comment or both
-        if (strcmp(var2, "") == 0 && !fileAttached) {
-            printMsg(conn, STRING_EMPTY_COMMENT);
-            logLog("'%s'", dump_name);
-            return;
-        }else if (strcmp(var2, "") == 0 && fileAttached){
-            strcpy(var2, STRING_UNCOMMENTED);
-        }
+    if (strcmp(var2, "") == 0 && !fileAttached) {
+        printMsg(conn, STRING_EMPTY_COMMENT);
+        logLog("'%s'", dump_name);
+        return;
+    }else if (strcmp(var2, "") == 0 && fileAttached){
+        strcpy(var2, STRING_UNCOMMENTED);
+    }
     // }
     //logLog("addr: %d %d %d %d %d", var1, var2, var3, var4, ipath);
     //verify the cookie
@@ -1061,7 +1019,7 @@ void postSomething(mg_connection* conn, const char* uri){
             tmpcontent += (imageDetector[i] + "<br/>");
     }
 
-    const char * cip = getClientIP(conn);
+    const char * cip = get_client_ip(conn);
     logLog("New Thread: (Sub: '%s', Opt: '%s', Img: '%s', Dump: '%s', IP: '%s')", var1, var3, var4, dump_name, cip);
 
     if (strstr(conn->uri, "/post_reply/")) {
@@ -1101,27 +1059,13 @@ void postSomething(mg_connection* conn, const char* uri){
 }
 
 void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
-    // mg_printf(conn, "charset", "utf-8");
-    // mg_printf(conn, "HTTP/1.1 200 OK\r\n");
-    // mg_printf(conn, "Content-Type: text/html\r\n");
 
-    if(indexPage)
-    	printHeader(conn, STRING_PAGE"1");
-    else{
-    	string url(conn->uri);
-		vector<string> tmp = split(url, "/");
-		string num = tmp[tmp.size() - 1];
-		printHeader(conn, (STRING_PAGE + num).c_str());
-    }
+    int num = indexPage ? 1 : extractLastNumber(conn);
 
-    if(!archiveMode) {
-    	HTMLTemplate *ht = templates_manager.invoke_template("post_form");
-    	string tmp = ht->stat("post_new_thread", true).build2();
-    	// logLog("%s", tmp.c_str());
-    	mg_printf_data(conn, "%s", tmp.c_str());
-    	delete ht;
-    }
-    // } mg_printf_data(conn, html_form, "/post_thread", "hiding", STRING_NEW_THREAD);
+    templates.invoke("site_header").var("CURRENT_PAGE", num) \  
+        .toggle(!galleryPage ? "timeline_page" : "gallery_page").pipe_to(conn).destory();
+
+    if(!archiveMode) templates.invoke("post_form").toggle("post_new_thread").pipe_to(conn).destory();
 
     clock_t startc = clock();
 
@@ -1140,26 +1084,71 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
     }
 
     clock_t endc = clock();
+    site_footer(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
+}
 
-    // char ssid[10];
-    // mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 9); ssid[9] = 0;
-    // time_t nn;
-    // time(&nn);
-    // mg_printf_data(conn, "<div style='text-align:center;color:#aaa;line-height:1em'><small>%d.%ld.%s.%ld</small></div>", 
-    //     stopNewcookie? 0 : 1, readMemusage() * 4, ssid, BUILD_DATE);
-    printFooter(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
+void admin_actions(struct mg_connection *conn){
+    if(conn->content_len <= 0){
+        printMsg(conn, STRING_UNKNOWN_ERROR);
+        return;
+    }
+
+    int data_len, ofs = 0, mofs = 0;
+    char var_name[100], file_name[100];
+    const char *data;
+    map<string, string> actions;
+
+    while ((mofs = mg_parse_multipart(conn->content + ofs, conn->content_len - ofs,
+        var_name, sizeof(var_name),
+        file_name, sizeof(file_name),
+        &data, &data_len)) > 0) {
+        
+        ofs += mofs;
+
+        char var1[512] = {0};
+        strncpy(var1, data, data_len);
+
+        actions[string(var_name)] = string(var1);
+    }
+
+    if(HAS_KEY("password")){
+        if(actions["password"] == adminPassword){
+            char ssid[128]; 
+            mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
+
+            if(strcmp(ssid, "") != 0){
+                strncpy(adminCookie, ssid, 64);
+                printMsg(conn, "Admin's cookie has been set to %s", adminCookie);
+                logLog("Set New Admin Cookie '%s' by '%s'", adminCookie, get_client_ip(conn));
+                return;
+            }
+            else{
+                printMsg(conn, "Can't set admin's cookie to null");
+                return;
+            }
+        }
+    }
+
+    if(!verifyAdmin(conn)) {
+        printMsg(conn, STRING_NO_PERMISSION);
+        checkIP(conn, true);
+        return;
+    }
+
+    if(HAS_KEY("cookie"))               stopNewcookie = (actions["cookie"] == "off");
+    if(HAS_KEY("archive"))              archiveMode = (actions["archive"] == "on");
+    if(HAS_KEY("max-page-viewable"))    maxPageShown = atol(actions["max-page-viewable"].c_str());
+    if(HAS_KEY("quit-admin"))           strcpy(adminCookie, adminPassword);
+    
+    printMsg(conn, "ok");
 }
 
 static void sendReply(struct mg_connection *conn) {
 
-    if (strcmp(conn->uri, "/post_thread") == 0)
-        postSomething(conn, conn->uri);         //post a thread
-    else if (strstr(conn->uri, "/post_reply/"))
-        postSomething(conn, conn->uri); //post a reply
-    else if (strstr(conn->uri, "/page/"))
-        returnPage(conn, false);        //view page
-    else if (strstr(conn->uri, "/gallery/"))
-        returnPage(conn, false, true);  //view gallery
+    if (strcmp(conn->uri, "/post_thread") == 0) postSomething(conn, conn->uri); //post a thread
+    else if (strstr(conn->uri, "/post_reply/")) postSomething(conn, conn->uri); //post a reply
+    else if (strstr(conn->uri, "/page/"))       returnPage(conn, false);        //view page
+    else if (strstr(conn->uri, "/gallery/"))    returnPage(conn, false, true);
     else if (strstr(conn->uri, "/success/")){
         string url(conn->uri);
         vector<string> tmp = split(url, "/");
@@ -1178,13 +1167,10 @@ static void sendReply(struct mg_connection *conn) {
         if(id == 0)
             printMsg(conn, STRING_NEW_THREAD_SUCCESS);
         else{
-            printHeader(conn);
-            // mg_printf_data(conn, html_redirtothread, id, id, id);
-            HTMLTemplate *ht = templates_manager.invoke_template("info_page");
-            mg_printf_data(conn, "%s", ht->var("THREAD_NO", to_string(id)).stat("return_page", true).build2().c_str());
-            delete ht;
+            templates.invoke("site_header").toggle("success_post_page").pipe_to(conn).destory();
+            templates.invoke("info_page").var("THREAD_NO", id).toggle("return_page").pipe_to(conn).destory();
 
-            printFooter(conn);
+            site_footer(conn);
         }   //post successfully page
     }
     else if (strstr(conn->uri, "/thread/") || strstr(conn->uri, "/daerht/")){
@@ -1204,7 +1190,9 @@ static void sendReply(struct mg_connection *conn) {
                 return;
             }
 
-            printHeader(conn, ("No." + to_string(id) + " " + string(t->author)).c_str());
+            //printHeader(conn, ("No." + to_string(id) + " " + string(t->author)).c_str());
+            templates.invoke("site_header").toggle("thread_page") \
+                .var("THREAD_NO", id).var("THREAD_TITLE", t->author).pipe_to(conn).destory();
 
             if (pid)
                 mg_printf_data(conn, "<a href='/thread/%d'>&#171; No.%d</a><hr>", pid, pid);
@@ -1215,7 +1203,7 @@ static void sendReply(struct mg_connection *conn) {
             showThread(conn, id, strstr(conn->uri, "/daerht/"));
             clock_t endc = clock();
 
-            printFooter(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
+            site_footer(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
         }   //view a thread and its replies
 
         delete t;
@@ -1236,49 +1224,49 @@ static void sendReply(struct mg_connection *conn) {
 
         delete r;       //return a thread's plain HTML
     }
-    else if (strstr(conn->uri, "/ascend/")){
-        if(!checkIP(conn, true)) return;
+    // else if (strstr(conn->uri, "/ascend/")){
+    //     if(!checkIP(conn, true)) return;
 
-        if(strstr(conn->uri, adminPassword)){
-            char ssid[128]; 
-            mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
+    //     if(strstr(conn->uri, adminPassword)){
+    //         char ssid[128]; 
+    //         mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
 
-            if(strcmp(ssid, "") != 0){
-                strncpy(adminCookie, ssid, 64);
-                printMsg(conn, "Admin's cookie has been set to %s", adminCookie);
-                logLog("Set New Admin Cookie '%s' by '%s'", adminCookie, getClientIP(conn));
-            }
-            else
-                printMsg(conn, "Can't set admin's cookie to null");
-        }else{
-            printMsg(conn, STRING_NO_PERMISSION);
-            checkIP(conn, true);
-        }   //ascend the admin privilege using new cookie
-    }
-    else if (strstr(conn->uri, "/acquire/")){
-        if(!checkIP(conn, true)) return;
+    //         if(strcmp(ssid, "") != 0){
+    //             strncpy(adminCookie, ssid, 64);
+    //             printMsg(conn, "Admin's cookie has been set to %s", adminCookie);
+    //             logLog("Set New Admin Cookie '%s' by '%s'", adminCookie, get_client_ip(conn));
+    //         }
+    //         else
+    //             printMsg(conn, "Can't set admin's cookie to null");
+    //     }else{
+    //         printMsg(conn, STRING_NO_PERMISSION);
+    //         checkIP(conn, true);
+    //     }   //ascend the admin privilege using new cookie
+    // }
+    // else if (strstr(conn->uri, "/acquire/")){
+    //     if(!checkIP(conn, true)) return;
 
-        if(strstr(conn->uri, adminPassword)){
-            setCookie(conn, adminCookie);
-            printMsg(conn, "Acquire admin's cookie: %s", adminCookie);
-            logLog("Acquire Admin Cookie '%s' by '%s'", adminCookie, getClientIP(conn));
-        }else{
-            printMsg(conn, STRING_NO_PERMISSION);
-            checkIP(conn, true);
-        }   //transfer the admin privilege to a new browser
-    }
-    else if (strstr(conn->uri, "/abdicate/")){
-        if(!checkIP(conn, true)) return;
+    //     if(strstr(conn->uri, adminPassword)){
+    //         setCookie(conn, adminCookie);
+    //         printMsg(conn, "Acquire admin's cookie: %s", adminCookie);
+    //         logLog("Acquire Admin Cookie '%s' by '%s'", adminCookie, get_client_ip(conn));
+    //     }else{
+    //         printMsg(conn, STRING_NO_PERMISSION);
+    //         checkIP(conn, true);
+    //     }   //transfer the admin privilege to a new browser
+    // }
+    // else if (strstr(conn->uri, "/abdicate/")){
+    //     if(!checkIP(conn, true)) return;
 
-        if(strstr(conn->uri, adminPassword)){
-            strcpy(adminCookie, adminPassword);
-            printMsg(conn, "Admin has abdicated");
-            logLog("Admin Has Abdicated");
-        }else{
-            printMsg(conn, STRING_NO_PERMISSION);
-            checkIP(conn, true);
-        }   //drop the admin privilege
-    }
+    //     if(strstr(conn->uri, adminPassword)){
+    //         strcpy(adminCookie, adminPassword);
+    //         printMsg(conn, "Admin has abdicated");
+    //         logLog("Admin Has Abdicated");
+    //     }else{
+    //         printMsg(conn, STRING_NO_PERMISSION);
+    //         checkIP(conn, true);
+    //     }   //drop the admin privilege
+    // }
     else if (strstr(conn->uri, "/state/")){
         if(!checkIP(conn, true)) return;
 
@@ -1379,7 +1367,7 @@ static void sendReply(struct mg_connection *conn) {
                 return;
             }
 
-            printHeader(conn);
+            templates.invoke("site_header").toggle("admin_list_all_page").pipe_to(conn).destory();
             clock_t startc = clock();
 
             for(cclong i = r->childCount; i > 0; i--){
@@ -1405,7 +1393,7 @@ static void sendReply(struct mg_connection *conn) {
             }
             clock_t endc = clock();
             // PRINT_TIME();
-            printFooter(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
+            site_footer(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
 
             if(r) delete r;
         }
@@ -1439,16 +1427,11 @@ static void sendReply(struct mg_connection *conn) {
                 mg_printf(conn, "HTTP/1.1 304 Not Modified\r\n\r\n");
                 return;
             }
-        // if (inm)
-        //     if (strcmp(inm, "") != 0){
-        //         mg_printf(conn, "HTTP/1.1 304 Not Modified\r\n\r\n");
-        //         return;
-        //     }
 
         string url(conn->uri);
         vector<string> tmp = split(url, "/");
         string fname = tmp[tmp.size() - 1];
-		string ctype;
+        string ctype;
         char ipath[64];
         strcpy(ipath, ("images/" + fname).c_str());
 
@@ -1459,7 +1442,7 @@ static void sendReply(struct mg_connection *conn) {
         else if (endsWith(fname, ".png"))
             ctype = "image/png";
         else
-        	ctype = "application/octet-stream";
+            ctype = "application/octet-stream";
 
         FILE *fp; struct stat st;
         char buf[1024];
@@ -1471,12 +1454,12 @@ static void sendReply(struct mg_connection *conn) {
 
         if (stat(ipath, &st) == 0 && (fp = fopen(ipath, "rb")) != NULL) {
             mg_printf(conn, "HTTP/1.1 200 OK\r\n"
-            				"Content-Type: %s\r\n"
-                			"Last-Modified: Sat, 31 Jul 1993 00:00:00 GMT\r\n"
-                			"Expires: Tue, 31 Jul 2035 00:00:00 GMT\r\n"
-                			// "Cache-Control: must-revalidate\r\n"
-                			"Cache-Control: Public\r\n"
-                			"Content-Length: %lu\r\n\r\n", ctype.c_str(), (unsigned cclong)st.st_size);
+                            "Content-Type: %s\r\n"
+                            "Last-Modified: Sat, 31 Jul 1993 00:00:00 GMT\r\n"
+                            "Expires: Tue, 31 Jul 2035 00:00:00 GMT\r\n"
+                            // "Cache-Control: must-revalidate\r\n"
+                            "Cache-Control: Public\r\n"
+                            "Content-Length: %lu\r\n\r\n", ctype.c_str(), (unsigned cclong)st.st_size);
             while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
                 mg_write(conn, buf, n);
             }
@@ -1485,42 +1468,6 @@ static void sendReply(struct mg_connection *conn) {
         }else{
             mg_printf(conn, "HTTP/1.1 404 Not Found\r\nContent-Type: image/jpeg\r\nContent-Length: 0\r\n\r\n");
         }   //image
-    }
-    else if (strstr(conn->uri, "/cookie/")){
-        if (strstr(conn->uri, "/destory")){
-            destoryCookie(conn);
-            printMsg(conn, STRING_RESET_COOKIE);
-        }else{
-            if (verifyAdmin(conn)){
-                stopNewcookie = strstr(conn->uri, "/close") ? true: false;
-                printMsg(conn, "Your have closed/opened new cookie delivering");
-                logLog("Cookie Closed/Opened");
-            }else{
-                printMsg(conn, STRING_NO_PERMISSION);
-                checkIP(conn, true);
-            }
-        }       //open/close/destory cookie
-    }
-    else if (strstr(conn->uri, "/archive/")){
-        if (verifyAdmin(conn)){
-            archiveMode = strstr(conn->uri, "/open") ? true: false;
-            printMsg(conn, "Your have closed/opened the archive mode");
-            logLog("Archive Mode Closed/Opened");
-        }else{
-            printMsg(conn, STRING_NO_PERMISSION);
-            checkIP(conn, true);
-        }
-    }
-    else if (strstr(conn->uri, "/pageshown/")){
-        if (verifyAdmin(conn)){
-            cclong n = extractLastNumber(conn);
-            maxPageShown = n;
-            printMsg(conn, "Max pages viewers can see: %d", n);
-            logLog("Max Page Shown: %d", maxPageShown);
-        }else{
-            printMsg(conn, STRING_NO_PERMISSION);
-            checkIP(conn, true);
-        }
     }
     else if (strstr(conn->uri, "/adminconsole/")){
         if (verifyAdmin(conn)){
@@ -1532,6 +1479,19 @@ static void sendReply(struct mg_connection *conn) {
             printMsg(conn, STRING_NO_PERMISSION);
             checkIP(conn, true);
         }   //admin console plain HTML
+    }
+    else if (strcmp(conn->uri, "/admin") == 0){
+        templates.invoke("site_header").toggle("admin_panel_page").pipe_to(conn).destory();
+        templates.invoke("admin_panel") \
+            .toggle("is_admin", verifyAdmin(conn)) \
+            .toggle("cookie", !stopNewcookie) \
+            .toggle("archive", archiveMode) \
+            .var("MAX_PAGES_VIEWABLE", maxPageShown) \
+            .pipe_to(conn).destory();
+        site_footer(conn);
+    }
+    else if (strcmp(conn->uri, "/admin_action") == 0){
+        admin_actions(conn);
     }
     else 
         returnPage(conn, true);
@@ -1671,16 +1631,6 @@ int main(int argc, char *argv[]){
     char zPath[64] = "default.db"; 
     log_file = stdout;
 
-
-    templates_manager \
-    .add_template("single_thread") \
-    .add_template("expand_hidden_replies") \
-    .add_template("admin_console") \
-    .add_template("post_form") \
-    .add_template("site_header") \
-    .add_template("site_footer") \
-    .add_template("info_page");
-
     for (int i = 0; i < argc; ++i){
         // if(TEST_ARG("--help", "-h")){
         //     puts(help_text);
@@ -1734,7 +1684,7 @@ int main(int argc, char *argv[]){
         if(TEST_ARG("--page-shown",     "-P")) { maxPageShown =    atoi(argv[++i]);     continue; }
         if(TEST_ARG("--stop-cookie",    "-s")) stopNewcookie = true;
         if(TEST_ARG("--stop-ipcheck",   "-i")) stopCheckIP = true;
-        if(TEST_ARG("--xff-ip",         "-x")) useXFF = true;
+        // if(TEST_ARG("--xff-ip",         "-x")) useXFF = true;
         if(TEST_ARG("--archive",        "-Z")) archiveMode = true;
     }
 
@@ -1743,6 +1693,16 @@ int main(int argc, char *argv[]){
     logLog("Cooldown Time: %ds", postCDTime);
     logLog("MD5 Salt: '%s'", md5Salt);
     logLog("Admin Cookie: '%s'", adminCookie);
+
+    templates.add_template("single_thread");
+    templates.add_template("expand_hidden_replies");
+    templates.add_template("admin_console");
+    templates.add_template("post_form");
+    templates.add_template("site_header").var("SITE_TITLE", siteTitle);
+    templates.add_template("site_footer").var("BUILD_DATE", to_string(BUILD_DATE));
+    templates.add_template("site_slogan");
+    templates.add_template("info_page");
+    templates.add_template("admin_panel");
 
     std::ifstream f(banListPath);
     string line;

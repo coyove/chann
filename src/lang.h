@@ -2,7 +2,7 @@
 
 #ifdef LANG_CHINESE
 
-#define TIME_FORMAT	"%Y-%m-%d %X"
+#define TIME_FORMAT	"%Y-%m-%d"
 
 #define STRING_UNKNOWN_ERROR		"未知错误"
 #define STRING_SUBJECT 				"标题"
