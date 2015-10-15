@@ -46,7 +46,14 @@
                     <!--[if !thread_poster_is_admin]-->{{THREAD_POSTER}}<!--[endif]-->
 
                     <!--[if thread_poster_is_sameone]--><pox>PO</pox><!--[endif]-->
-                </ssid> 发布于 {{THREAD_POST_TIME}}
+                </ssid> 发布于&nbsp;
+                <!--[if show_easy_date]-->
+                    <!--[iftest THREAD_POST_DATE=0]-->今天<!--[endif]-->
+                    <!--[iftest THREAD_POST_DATE=1]-->昨天<!--[endif]-->
+                    <!--[iftest THREAD_POST_DATE=2]-->前天<!--[endif]-->
+                <!--[endif]-->
+                <!--[if !show_easy_date]-->{{THREAD_POST_DATE}}<!--[endif]-->
+                &nbsp;{{THREAD_POST_TIME}}
             </span>&nbsp;
 
             <!--[if show_reply]-->
@@ -85,7 +92,14 @@
                     <!--[if thread_poster_is_admin]--><red>Admin</red><!--[endif]-->
                     <!--[if !thread_poster_is_admin]-->{{THREAD_POSTER}}<!--[endif]-->
                     <!--[if thread_poster_is_sameone]--><pox>PO</pox><!--[endif]-->
-                </ssid> 发布于 {{THREAD_POST_TIME}}
+                </ssid> 发布于&nbsp;
+                <!--[if show_easy_date]-->
+                    <!--[iftest THREAD_POST_DATE=0]-->今天1<!--[endif]-->
+                    <!--[iftest THREAD_POST_DATE=1]-->昨天2<!--[endif]-->
+                    <!--[iftest THREAD_POST_DATE=2]-->前天3<!--[endif]-->
+                <!--[endif]-->
+                <!--[if !show_easy_date]-->{{THREAD_POST_DATE}}<!--[endif]-->
+                &nbsp;{{THREAD_POST_TIME}}
             </span>&nbsp;
         </div>
         <div class='alert-box'>Access Denied</div>

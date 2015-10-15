@@ -1,5 +1,7 @@
-// CppDummy.cpp : Defines the entry point for the console application.
-//
+
+#ifndef HTML_TEMPLATE_SYSTEM
+#define HTML_TEMPLATE_SYSTEM
+
 #include <iostream>
 #include <string>
 #include <map>
@@ -9,11 +11,16 @@
 #include <fstream>
 #include <exception>
 
+extern "C" {
+#include "../lib/mongoose/mongoose.h"
+}
+
 using std::vector;
 using std::map;
 using std::stack;
 using std::string;
 using std::pair;
+using std::stringstream;
 
 class HTMLTemplate {
 private:
@@ -21,12 +28,13 @@ private:
 		PLAIN = 0, 
 		VARIABLE = 1, 
 		IF = 2, 
-		EQ = 3, 
+		IFTEST = 3, 
 		FI = 4
 	};
 	string str;
 	vector<pair<unsigned, string>> vec;
 	map<unsigned, unsigned> fi_pos;
+	map<unsigned, pair<string, string>> if_test;
 	stack<pair<unsigned, string>> if_statements;
 
 	map<string, string> i_vars;
@@ -41,6 +49,9 @@ public:
 		str = r.str;
 		vec = r.vec;
 		fi_pos = r.fi_pos;
+		if_test = r.if_test;
+		i_vars = r.i_vars;
+		i_stats = r.i_stats;
 	}
 
 	void load_file(string s){
@@ -58,6 +69,10 @@ public:
 		int last_if_pos = 0;
 
 		bool flag = false;
+
+		vec.clear();
+		fi_pos.clear();
+		if_test.clear();
 
 		for (unsigned i = 0; i < str.size(); ++i) {
 			if (str[i] == '{' && str[i + 1] == '{') {
@@ -88,6 +103,18 @@ public:
 
 					vec.push_back(make_pair(IF, if_name));
 
+				}
+				else if (tmp.substr(0, 7) == "iftest ") {
+					stringstream ifss(tmp.substr(7));
+					string if_name, if_condition;
+
+					getline(ifss, if_name, '=');
+					getline(ifss, if_condition);
+
+					if_statements.push(make_pair(vec.size(), if_name));
+					vec.push_back(make_pair(IFTEST, if_name));
+
+					if_test[vec.size() - 1] = make_pair(if_name, if_condition);
 				}
 				else if (tmp.substr(0, 5) == "endif") {
 					string if_name = if_statements.top().second;
@@ -135,6 +162,9 @@ public:
 					if(debug && stats.find(tmp) == stats.end()) ret.append("=" + tmp);
 				}
 				break;
+			case IFTEST:
+
+				if(vars[if_test[i].first] != if_test[i].second) i = fi_pos[i];
 			case FI:
 			default:
 				break;
@@ -148,10 +178,22 @@ public:
 		return *this;
 	}
 
-	HTMLTemplate& stat(const string& stat_name, const bool stat_value){
+	HTMLTemplate& var(const string& var_name, const int var_value){
+		i_vars[var_name] = std::to_string(var_value);
+		return *this;
+	}
+
+	HTMLTemplate& toggle(const string& stat_name, const bool stat_value = true){
 		i_stats[stat_name] = stat_value;
 		return *this;
 	}
+
+	HTMLTemplate& pipe_to(mg_connection* conn){
+		mg_printf_data(conn, "%s", build(i_vars, i_stats).c_str());
+		return *this;
+	}
+
+	void destory(){ delete this;}
 
 	string build2(){
 		return build(i_vars, i_stats);
@@ -177,16 +219,22 @@ class TemplateManager{
 private:
 	map<string, HTMLTemplate> m_templates;
 public:
-	TemplateManager& add_template(const string& name){
+	HTMLTemplate& add_template(const string& name){
 		HTMLTemplate tmp;
 		tmp.load_file(string("templates/") + name + string(".tpl"));
 
 		m_templates[name] = tmp;
 
-		return *this;
+		return m_templates[name]; //*this;
 	}
 
-	HTMLTemplate* invoke_template(const string& name){
+	HTMLTemplate& invoke(const string& name){
+		return *(new HTMLTemplate(m_templates[name]));
+	}
+
+	HTMLTemplate* invoke_pointer(const string& name){
 		return new HTMLTemplate(m_templates[name]);
 	}
 };
+
+#endif

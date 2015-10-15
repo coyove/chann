@@ -1,7 +1,46 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>{{SITE_TITLE}}</title>
+
+<title>
+    {{SITE_TITLE}}
+    <!--[if my_post_page]-->
+    &nbsp;- 我的记录
+    <!--[endif]-->
+
+    <!--[if success_post_page]-->
+    &nbsp;- 送出成功
+    <!--[endif]-->
+
+    <!--[if upload_image_page]-->
+    &nbsp;- 上传图片成功
+    <!--[endif]-->
+
+    <!--[if timeline_page]-->
+    &nbsp;- 第{{CURRENT_PAGE}}页
+    <!--[endif]-->
+
+    <!--[if gallery_page]-->
+    &nbsp;相册 - 第{{CURRENT_PAGE}}页
+    <!--[endif]-->
+
+    <!--[if thread_page]-->
+    &nbsp;- No.{{THREAD_NO}} {{THREAD_TITLE}}
+    <!--[endif]-->
+
+    <!--[if admin_list_all_page]-->
+    &nbsp;- 全站列表
+    <!--[endif]-->
+
+    <!--[if admin_panel_page]-->
+    &nbsp;- 控制面板
+    <!--[endif]-->
+
+    <!--[if archive_mode]-->
+    的存档&nbsp;- 第{{CURRENT_PAGE}}页
+    <!--[endif]-->
+</title>
+
 <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 <meta charset='UTF-8'/><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'/>
 <link rel='icon' type='image/png' href='/images/favicon.png'>
