@@ -14,13 +14,17 @@ extern "C" {
 #include <string>
 #include <cstring>
 
-void setCookie(mg_connection *conn, const char *ssid);
+void set_cookie(mg_connection *conn, const std::string c);
 char* generateSSID(const char *user_name);
-char* renewCookie(const char* username);
-char* giveNewCookie(mg_connection* conn);
+
+std::string to_ssid(const std::string username);
+
+std::string random_9chars();
 void destoryCookie(mg_connection *conn);
 int renewCookie(mg_connection* conn, const char* username);
-char* verifyCookie(mg_connection* conn);
+
+std::string verify_cookie(mg_connection* conn);
+
 char* verifyCookieStr(char* szSSID);
 
 #endif

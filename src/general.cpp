@@ -14,14 +14,14 @@ void changeState(struct Thread* t, char statebit, bool op){
 	}
 }
 
-char * resolveState(char state){
-	char *ret = new char[64];
-	strcpy(ret, "[");
-	strcat(ret, state & NORMAL_DISPLAY ? "Normal|" : "Deleted,");
-	strcat(ret, state & MAIN_THREAD ? "Thread|" : "");
-	strcat(ret, state & THREAD_REPLY ? "Reply|" : "");
-	strcat(ret, state & SAGE_THREAD ? "Sage|" : "");
-	strcat(ret, state & LOCKED_THREAD ? "Locked|" : "");
+std::string resolve_state(char state){
+	std::string ret = "";
+	
+	ret += state & NORMAL_DISPLAY ? "Normal," : "Deleted,";
+	ret += state & MAIN_THREAD ? "Thread," : "";
+	ret += state & THREAD_REPLY ? "Reply," : "";
+	ret += state & SAGE_THREAD ? "Sage," : "";
+	ret += state & LOCKED_THREAD ? "Locked," : "";
 
 	return ret;
 }
@@ -117,7 +117,7 @@ int deleteThread(unqlite *pDb, cclong tid){
 	return 1;
 }
 
-int newThread(unqlite *pDb, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega){
+int newThread(unqlite *pDb, const char* content, char* author, const char* email, const char* ssid, char* imgSrc, bool sega){
 	struct Thread *t = new Thread();
 
 	char contentkey[16];
@@ -170,7 +170,7 @@ int newThread(unqlite *pDb, const char* content, char* author, const char* email
 	return 1;
 }
 
-int newReply(unqlite *pDb, cclong id, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega){
+int newReply(unqlite *pDb, cclong id, const char* content, char* author, const char* email, const char* ssid, char* imgSrc, bool sega){
 	struct Thread *r = readThread_(pDb, id);
 	struct Thread *root = readThread_(pDb, 0);
 	struct Thread *self = r;

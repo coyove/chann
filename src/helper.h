@@ -20,8 +20,6 @@ extern "C"{
 #include "../lib/mongoose/mongoose.h"
 }
 
-using namespace std;
-
 #define TO_STRING_PLACEHOLDER "%tsp%"
 #define _N(a) TO_STRING_PLACEHOLDER, a
 #define BEGIN_STRING(x) szBuilder(x, sizeof(x)
@@ -29,12 +27,22 @@ using namespace std;
 #define _(x) #x
 
 //some c++ string functions to make life easier
-vector<string> split(const string &s, const string &seperator);
-string replaceAll(std::string str, const std::string& from, const std::string& to);
+std::string 
+extract_ssid(mg_connection* conn);
+
+std::vector<std::string> 
+split(const std::string &s, const std::string &seperator);
+
+std::string 
+replaceAll(std::string str, const std::string& from, const std::string& to);
+
 bool endsWith(std::string const &fullString, std::string const &ending);
 bool startsWith(std::string const &fullString, std::string const &start);
+
 cclong extractLastNumber(mg_connection* conn);
-void cleanString(string& str);
+
+void cleanString(std::string& str);
+
 char* nowNow();
 void Fatal(const char *zMsg);
 void logLog(const char* msg, ...);

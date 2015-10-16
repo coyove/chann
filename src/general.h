@@ -64,7 +64,7 @@ struct History{
 // when use readXXX, remember to destory them
 
 void    changeState(struct Thread* t, char statebit, bool op);
-char*   resolveState(char state);
+std::string resolve_state(char state);
 char*   readString(unqlite *pDb, char* key);
 char*   readString_(unqlite *pDb, cclong key);
 int     writeString(unqlite *pDb, char* key, const char* value, bool autoCommit);
@@ -80,8 +80,8 @@ cclong  nextCounter(unqlite *pDb);
 int     resetDatabase(unqlite *pDb);
 cclong  findParent(unqlite *pDb, struct Thread* b);
 int     deleteThread(unqlite *pDb, cclong tid);
-int     newThread(unqlite *pDb, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega);
-int     newReply(unqlite *pDb, cclong id, const char* content, char* author, const char* email, char* ssid, char* imgSrc, bool sega);
+int     newThread(unqlite *pDb, const char* content, char* author, const char* email, const char* ssid, char* imgSrc, bool sega);
+int     newReply(unqlite *pDb, cclong id, const char* content, char* author, const char* email, const char* ssid, char* imgSrc, bool sega);
 int     displayReply(unqlite *pDb, struct Thread *t);
 int     listThread(unqlite *pDb);
 

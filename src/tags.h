@@ -10,6 +10,7 @@
 #include <sstream>
 #include <fstream>
 #include <exception>
+#include <queue>
 
 extern "C" {
 #include "../lib/mongoose/mongoose.h"
@@ -21,48 +22,61 @@ using std::stack;
 using std::string;
 using std::pair;
 using std::stringstream;
+using std::queue;
 
 class HTMLTemplate {
 private:
 	enum {
-		PLAIN = 0, 
-		VARIABLE = 1, 
-		IF = 2, 
-		IFTEST = 3, 
-		FI = 4
+		PLAIN = 0,
+		VARIABLE = 1,
+		IF = 2,
+		IFTEST = 3,
+		ENDIF = 4,
+		LOOP = 5,
+		ENDLOOP = 6
 	};
 	string str;
 	vector<pair<unsigned, string>> vec;
-	map<unsigned, unsigned> fi_pos;
-	map<unsigned, pair<string, string>> if_test;
+
 	stack<pair<unsigned, string>> if_statements;
+	stack<pair<unsigned, string>> loop_statements;
+
+	map<unsigned, unsigned> fi_pos;
+	map<unsigned, unsigned> loop_pos;
+	map<unsigned, unsigned> loop_pos_rev;
+	map<unsigned, pair<string, string>> if_test;
 
 	map<string, string> i_vars;
 	map<string, bool> i_stats;
+	map<string, queue<string>> i_loops;
 public:
 	HTMLTemplate() = default;
-	HTMLTemplate(string s){
+	HTMLTemplate(string s) {
 		load(s);
 	}
 
-	HTMLTemplate(const HTMLTemplate& r){
+	HTMLTemplate(const HTMLTemplate& r) {
 		str = r.str;
 		vec = r.vec;
 		fi_pos = r.fi_pos;
+		loop_pos = r.loop_pos;
+		loop_pos_rev = r.loop_pos_rev;
 		if_test = r.if_test;
+
 		i_vars = r.i_vars;
 		i_stats = r.i_stats;
+		i_loops = r.i_loops;
 	}
 
-	void load_file(string s){
+	void load_file(string s) {
 		std::ifstream ifs(s);
 		string line, sz;
-		while(getline(ifs, line)) sz += trim(line);
+		while (getline(ifs, line)) sz += trim(line);
 
 		load(sz);
 	}
 
-	void load(string s){
+	void load(string s) {
 		str = s;
 		int last_pos = 0;
 		int last_var_pos = 0;
@@ -98,32 +112,51 @@ public:
 			if (str[i] == ']' && str[i + 1] == '-' && str[i + 2] == '-' && str[i + 3] == '>') {
 				string tmp = str.substr(last_if_pos, i - last_if_pos);
 				if (tmp.substr(0, 3) == "if ") {
-					string if_name = tmp.substr(3);
-					if_statements.push(make_pair(vec.size(), if_name));
+					if(tmp.find("=") == std::string::npos){
+						string if_name = tmp.substr(3);
+						if_statements.push(make_pair(vec.size(), if_name));
 
-					vec.push_back(make_pair(IF, if_name));
+						vec.push_back(make_pair(IF, if_name));
 
+					}
+					else {
+						stringstream ifss(tmp.substr(3));
+						string if_name, if_condition;
+
+						getline(ifss, if_name, '=');
+						getline(ifss, if_condition);
+
+						if_statements.push(make_pair(vec.size(), if_name));
+						vec.push_back(make_pair(IFTEST, if_name));
+
+						if_test[vec.size() - 1] = make_pair(if_name, if_condition);
+					}
 				}
-				else if (tmp.substr(0, 7) == "iftest ") {
-					stringstream ifss(tmp.substr(7));
-					string if_name, if_condition;
-
-					getline(ifss, if_name, '=');
-					getline(ifss, if_condition);
-
-					if_statements.push(make_pair(vec.size(), if_name));
-					vec.push_back(make_pair(IFTEST, if_name));
-
-					if_test[vec.size() - 1] = make_pair(if_name, if_condition);
-				}
-				else if (tmp.substr(0, 5) == "endif") {
+				else if (tmp == "endif") {
 					string if_name = if_statements.top().second;
 					unsigned if_pos = if_statements.top().first;
 
 					if_statements.pop();
 
-					vec.push_back(make_pair(FI, if_name));
+					vec.push_back(make_pair(ENDIF, if_name));
 					fi_pos[if_pos] = vec.size() - 1;
+				}
+				else if (tmp.substr(0, 5) == "loop ") {
+					string loop_name = tmp.substr(5);
+
+					loop_statements.push(make_pair(vec.size(), loop_name));
+					vec.push_back(make_pair(LOOP, loop_name));
+				}
+				else if (tmp == "endloop") {
+					string loop_name = loop_statements.top().second;
+					unsigned pos = loop_statements.top().first;
+
+					loop_statements.pop();
+
+					vec.push_back(make_pair(ENDLOOP, loop_name));
+
+					loop_pos[pos] = vec.size() - 1;
+					loop_pos_rev[vec.size() - 1] = pos;
 				}
 
 				last_pos = i + 4;
@@ -134,38 +167,54 @@ public:
 		}
 
 		if (!if_statements.empty()) throw std::logic_error("Incorrect if statements");
+		if (!loop_statements.empty()) throw std::logic_error("Incorrect loop statements");
 	}
 
-	string build(map<string, string> &vars, map<string, bool> &stats, bool debug = false) {
+	string build(map<string, string> &vars, map<string, bool> &stats, map<string, queue<string>> &loops) {
 		int var_pointer = 0;
 		string ret = "", tmp = "";
-		
+
 		for (auto i = 0; i < vec.size(); ++i) {
 			// std::cout  << vec[i].second << "  =" << vec[i].second.size() << std::endl;
 
 			switch (vec[i].first) {
 			case VARIABLE:
 				ret.append(vars[vec[i].second]);
-				if(debug && vars.find(vec[i].second) == vars.end()) ret.append(vec[i].second);
 				break;
 			case PLAIN:
 				ret.append(vec[i].second);
 				break;
 			case IF:
 				tmp = vec[i].second;
+
 				if (tmp[0] == '!') {
 					if (stats[tmp.substr(1)]) i = fi_pos[i];
-					if(debug && stats.find(tmp.substr(1)) == stats.end()) ret.append("=" + tmp.substr(1));
 				}
-				else {
+				else
 					if (!stats[tmp]) i = fi_pos[i];
-					if(debug && stats.find(tmp) == stats.end()) ret.append("=" + tmp);
-				}
 				break;
 			case IFTEST:
+				tmp = if_test[i].first;
 
-				if(vars[if_test[i].first] != if_test[i].second) i = fi_pos[i];
-			case FI:
+				if (tmp[0] == '!') {
+					if (vars[tmp.substr(1)] == if_test[i].second) i = fi_pos[i];
+				}
+				else
+					if (vars[tmp] != if_test[i].second) i = fi_pos[i];
+				break;
+			case LOOP:
+				if (loops[vec[i].second].empty())
+					i = loop_pos[i];
+				else {
+					vars[vec[i].second] = loops[vec[i].second].front();
+					loops[vec[i].second].pop();
+				}
+				break;
+			case ENDLOOP:
+				if (!loops[vec[i].second].empty())
+					i = loop_pos_rev[i] - 1;
+				break;
+			case ENDIF:
 			default:
 				break;
 			}
@@ -173,30 +222,35 @@ public:
 		return ret;
 	}
 
-	HTMLTemplate& var(const string& var_name, const string& var_value){
+	HTMLTemplate& var(const string& var_name, const string& var_value) {
 		i_vars[var_name] = var_value;
 		return *this;
 	}
 
-	HTMLTemplate& var(const string& var_name, const int var_value){
+	HTMLTemplate& var(const string& var_name, const int var_value) {
 		i_vars[var_name] = std::to_string(var_value);
 		return *this;
 	}
 
-	HTMLTemplate& toggle(const string& stat_name, const bool stat_value = true){
+	HTMLTemplate& toggle(const string& stat_name, const bool stat_value = true) {
 		i_stats[stat_name] = stat_value;
 		return *this;
 	}
 
-	HTMLTemplate& pipe_to(mg_connection* conn){
-		mg_printf_data(conn, "%s", build(i_vars, i_stats).c_str());
+	HTMLTemplate& loop(const string& loop_name, const queue<string> loop_stack) {
+		i_loops[loop_name] = loop_stack;
 		return *this;
 	}
 
-	void destory(){ delete this;}
+	HTMLTemplate& pipe_to(mg_connection* conn) {
+		mg_printf_data(conn, "%s", build(i_vars, i_stats, i_loops).c_str());
+		return *this;
+	}
 
-	string build2(){
-		return build(i_vars, i_stats);
+	void destory() { delete this; }
+
+	string build2() {
+		return build(i_vars, i_stats, i_loops);
 	}
 
 	static string trim(const string& str)
