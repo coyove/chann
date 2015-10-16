@@ -35,18 +35,19 @@ using namespace std;
 
 unqlite *pDb;
 time_t  gStartupTime;               //server's startup time
-char*   adminPassword;              // * administrator's password
+string  admin_password;              // * administrator's password
+string  admin_cookie;
 char    siteTitle[64];              //site's title
 char    md5Salt[64]     = "coyove"; // * MD5 salt
-char    adminCookie[64];            //Admin's cookie
+// char    adminCookie[64];            //Admin's cookie
 char    thumbPrefix[64];
-int     threadsPerPage  = 5;        //threads per page to show
+int     threads_per_page  = 5;        //threads per page to show
 int     postCDTime      = 20;       //cooldown time
 int     maxFileSize     = 2;        //megabytes
 int     maxPageShown    = 0;
-int     autoLockThread  = 1000;
+int     max_replies  = 1000;
 bool    stopNewcookie   = false;    //stop delivering new cookies
-bool    stopCheckIP     = false;    //stop checking ip
+bool    stop_check_ip     = false;    //stop checking ip
 // bool    useXFF          = false;
 bool    archiveMode     = false;
 FILE*   log_file;                   //log file
@@ -62,13 +63,16 @@ struct mg_server *server;
 TemplateManager templates;
 
 #define TEST_ARG(b1, b2) (strcmp(argv[i], b1) == 0 || strcmp(argv[i], b2) == 0)
-#define HAS_KEY(x) actions.find(x) != actions.end()
 
 static const unsigned long long BUILD_DATE = __BUILD_DATE;
 
 const char * get_client_ip(mg_connection* conn){
     const char * xff = mg_get_header(conn, "X-Forwarded-For");
     return (xff ? xff : conn->remote_ip);
+}
+
+bool is_admin(mg_connection* conn){
+    return (extract_ssid(conn) == admin_cookie);
 }
 
 void site_footer(mg_connection* conn, float e_time = 0.0f){
@@ -108,7 +112,7 @@ void printMsg(mg_connection* conn, const char* msg, ...){
 }
 
 bool checkIP(mg_connection* conn, bool verbose = false){
-    if(stopCheckIP) return true;
+    if(stop_check_ip) return true;
 
     time_t rawtime;
     time(&rawtime);
@@ -116,10 +120,9 @@ bool checkIP(mg_connection* conn, bool verbose = false){
     string sip(cip);
     time_t lasttime = IPAccessList[sip];
     
-    if(strstr(conn->uri, adminPassword)) return true;
-    char ssid[128];
-    mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-    if(strcmp(ssid, adminCookie) == 0) return true;
+    if(strstr(conn->uri, admin_password.c_str())) return true;
+    
+    if(is_admin(conn)) return true;
 
     if(IPBanList.find(sip) != IPBanList.end()) {
         printMsg(conn, STRING_YOUR_IP_IS_BANNED);
@@ -135,27 +138,6 @@ bool checkIP(mg_connection* conn, bool verbose = false){
     }
     IPAccessList[sip] = rawtime;
     return true;
-}
-
-bool verifyAdmin(mg_connection* conn){
-    char ssid[128]; 
-    mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-    return (strcmp(ssid, adminCookie) == 0);
-}
-
-void doThread(mg_connection* conn, cclong tid, char STATE){
-    struct Thread* t = readThread_(pDb, tid);
-
-    if(findParent(pDb, t) == 0){
-        changeState(t, STATE, !(t->state & STATE));
-    
-        writeThread(pDb, tid, t, true);
-        printMsg(conn, "Thread No.%d new state: %s", tid, resolveState(t->state));
-        logLog("Thread No.%d New State: '%s'", tid, resolveState(t->state));
-    }else
-        printMsg(conn, "You can't sage or lock a reply");
-
-    delete t;
 }
 
 #define SEND_IS_REPLY           1
@@ -387,57 +369,34 @@ void sendThread(mg_connection* conn, struct Thread* r, char display_state, bool 
         vars["THREAD_POST_DATE"]        = string(timetmp);
     }
 
-    mg_printf_data(conn, "%s", ht->build(vars, stats).c_str());
+    map<string, queue<string>> loops; //nothing
+
+    mg_printf_data(conn, "%s", ht->build(vars, stats, loops).c_str());
 
     if(content) delete [] content;
     delete ht;
 }
 
 void requestAdminConsole(mg_connection* conn, struct Thread* r){
-    // char admin_ctrl[1024];
-    // int len = sprintf(admin_ctrl, "<br><span>"
-    //                     "<a class='wp-btn' href='/sage/%d' title='Sage Thread'>&#128078;</a>"
-    //                     "<a class='wp-btn' href='/lock/%d' title='Lock Thread'>&#128274;</a>"
-    //                     "<a class='wp-btn' href='/delete/%d' title='Del Thread'>&#128640;</a>"
-    //                     "<a class='wp-btn' href='/rename/%s'>"STRING_ADMIN_DEL_IMG"</a>"
-    //                     "<a class='wp-btn' href='/list/ip/%s'>"STRING_ADMIN_LIST_IP"</a>"
-    //                     "<a class='wp-btn' href='/ban/ip/%s'>"STRING_ADMIN_BAN_IP"</a>"
-    //                     "<a class='wp-btn' href='http://ip.chinaz.com/?IP=%s'>"STRING_ADMIN_WHERE_IP"</a>"
-    //                     "<a class='wp-btn' href='/list/%s'>"STRING_ADMIN_LIST_ID"</a>"
-    //                     "<a class='wp-btn' href='/ban/%s'>"STRING_ADMIN_BAN_ID"</a>"
-    //                     "<a class='wp-btn' href='/state/%d/%d'>"STRING_ADMIN_RESTORE"</a>"
-    //                     "</span>",
-    //                     r->threadID, r->threadID, r->threadID, r->imgSrc, 
-    //                     r->email, r->email, r->email,
-    //                     r->ssid, r->ssid,
-    //                     r->threadID, r->state & MAIN_THREAD ? 5 : 3);
-    
     templates.invoke("admin_console") \
         .var("THREAD_NO", r->threadID) \
         .var("THREAD_IP", r->email) \
         .var("THREAD_POSTER", r->ssid) \
         .var("THREAD_IMAGE", r->imgSrc) \
-        .var("THREAD_NEW_STATE", (r->state & MAIN_THREAD) ? "5" : "3") \
+        .var("THREAD_STATE", (unsigned int)r->state) \
         .pipe_to(conn).destory();
 }
 
 void showGallery(mg_connection* conn, cclong startID, cclong endID){
     struct Thread *r = readThread_(pDb, 0); // get the root thread
     cclong c = 0;
-    // clock_t startc = clock();
 
-    bool admin_view = verifyAdmin(conn);
+    bool admin_view = is_admin(conn);
 
     cclong totalThreads = r->childCount;
-    cclong totalPages = 100;
+    // cclong totalPages = 100;
 
-    // char *slogan = readString(pDb, "slogan");
-    // if(slogan) {
-    //     mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
-    //     delete [] slogan;
-    // }
     templates.invoke("site_slogan").pipe_to(conn).destory();
-    // if(admin_view) ADMIN_VIEW();
 
     for(cclong i = totalThreads; i > 0; --i){
         delete r;
@@ -446,7 +405,6 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
             c++;
             if (c >= startID && c <= endID){
                 mg_printf_data(conn, "<hr>");
-                //sendThread(conn, r, false, true, true, false, admin_view);
                 sendThread(conn, r, SEND_SHOW_REPLY_LINK + SEND_CUT_LONG_COMMENT, admin_view);
             }
         }
@@ -454,31 +412,20 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
         if (c == endID + 1) break;
     }
     if(r) delete r;
-    mg_printf_data(conn, "<hr><div style='text-align:center;'>");
-
-    cclong current_page = endID / threadsPerPage;
-
-    mg_printf_data(conn, "<a class='pager pager-arrow' href=\"/gallery/%d\">&#171;</a>", current_page-1?current_page-1:1);
-
-    for (cclong i = 1; i <= (maxPageShown == 0 ? totalPages : maxPageShown); ++i){
-        char tmp[256];
-        int len;
-
-        if (abs(current_page - i) <= 5){
-            if (i == current_page) //current page
-                len = sprintf(tmp, "<a class='pager-inv'>%d</a>", i);
-            else
-                len = sprintf(tmp, "<a class='pager' href=\"/gallery/%d\">%d</a>", i, i);
-
-            mg_send_data(conn, tmp, len);
-        }
-    }
-    mg_printf_data(conn, "<a class='pager pager-arrow' href=\"/gallery/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
-    // mg_printf_data(conn, "|<a class='pager' href='/'>&#128193;&nbsp;"STRING_TIMELINE_PAGE"</a>");
-    mg_printf_data(conn, "</div><br style='clear:both'>");
     
-    // clock_t endc = clock();
-    // PRINT_TIME();
+    cclong current_page = endID / threads_per_page;
+    queue<string> before, after;
+    for (cclong i = 1; i <= (maxPageShown == 0 || admin_view ? 10000 : maxPageShown); ++i){
+        if (current_page - i < 4 && current_page - i > 0) before.push(to_string(i));
+        else if (i - current_page < 4 && i - current_page > 0) after.push(to_string(i));
+        else if (i - current_page > 4) break;
+    }
+    
+    templates.invoke("pager").toggle("gallery_page") \
+        .var("CURRENT_PAGE", current_page) \
+        .var("PREVIOUS_PAGE", current_page > 1 ? (current_page - 1) : 1) \
+        .var("NEXT_PAGE", current_page + 1) \
+        .loop("before_pages", before).loop("after_pages", after).pipe_to(conn).destory();
 }
 
 void showThreads(mg_connection* conn, cclong startID, cclong endID){
@@ -486,24 +433,18 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
     cclong c = 0;
     // clock_t startc = clock();
 
-    bool admin_view = verifyAdmin(conn);
+    bool admin_view = is_admin(conn);
 
     cclong totalThreads = r->childCount;
-    cclong totalPages;
-    if (totalThreads <= threadsPerPage)
-        totalPages = 1;
-    else if (totalThreads % threadsPerPage == 0)
-        totalPages = (cclong)(totalThreads / threadsPerPage);
-    else
-        totalPages = (cclong)(totalThreads / threadsPerPage) + 1;
+    // cclong totalPages;
+    // if (totalThreads <= threads_per_page)
+    //     totalPages = 1;
+    // else if (totalThreads % threads_per_page == 0)
+    //     totalPages = (cclong)(totalThreads / threads_per_page);
+    // else
+    //     totalPages = (cclong)(totalThreads / threads_per_page) + 1;
 
-    // char *slogan = readString(pDb, "slogan");
-    // if(slogan) {
-    //     mg_printf_data(conn, "<div id='slogan'>%s</div>", slogan);
-    //     delete [] slogan;
-    // }
     templates.invoke("site_slogan").pipe_to(conn).destory();
-    // if(admin_view) ADMIN_VIEW();
 
     while (r->nextThread){
         cclong tmpid = r->nextThread;
@@ -540,55 +481,6 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 
                 vt.push_back(first_thread);
 
-                // i = 1; flag = false;
-                // while(i <= 5){
-                //     if(flag){
-                //         flag = false;
-                //         cclong prev_thread = r->prevThread;
-                //         delete r;
-                //         r = readThread_(pDb, prev_thread);
-                //     }else
-                //         r = readThread_(pDb, r->prevThread);
-
-                //     if(r->state & NORMAL_DISPLAY && r->threadID != first_thread->threadID) {
-                //         vt_prev.push_back(r);
-                //         i++;
-                //     }else if(r->threadID == first_thread->threadID)
-                //         break;
-                //     else
-                //         flag = true;
-                // }            
-                // vector<struct Thread *> vt;
-
-                // r = readThread_(pDb, r->childThread); // beginning of the circle
-                // struct Thread *begin_thread = r;
-                // cclong begin_id = r->threadID;
-
-                // r = readThread_(pDb, r->prevThread);
-                // cclong rid = r->threadID; //the ID
-                // //sendThread(conn, r, true, false);
-                // if(r->state & NORMAL_DISPLAY) vt.push_back(r);
-                
-                // int counter = 5;
-
-                // while (r->prevThread != rid){
-                //     //if(--counter == 0) break;
-                //     r = readThread_(pDb, r->prevThread);
-                //     if(r->state & NORMAL_DISPLAY){
-                //         if(--counter == 0) break;
-                //         vt.push_back(r);    
-                //     }
-                // }
-                // if(vt[vt.size() - 1]->threadID != begin_id) {
-                //     sendThread(conn, begin_thread, SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid);
-                //     delete begin_thread;
-
-                //     for (int i = vt.size() - 2; i >= 0; i--){
-                //         sendThread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid);
-                //         delete vt[i];
-                //     }
-                // }
-                // else
                 if(first_thread->childCount <= 5)
                     for (int i = vt.size() - 1; i >= 0; i--){
                         sendThread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid);
@@ -625,58 +517,37 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
         if (c == endID + 1) break;
     }
     if(r) delete r;
-    mg_printf_data(conn, "<hr><div style='text-align:center;'>");
 
-    cclong current_page = endID / threadsPerPage;
-
-    mg_printf_data(conn, "<a class='pager pager-arrow' href=\"/page/%d\">&#171;</a>", current_page-1?current_page-1:1);
-
-    for (cclong i = 1; i <= (maxPageShown == 0 ? totalPages : maxPageShown); ++i){
-        char tmp[256] = {0};
-        int len;
-
-        if (abs(current_page - i) <= 5){
-            if (i == current_page) //current page
-                len = sprintf(tmp, "<a class='pager-inv'>%d</a>", i);
-            else
-                if (i == 1) 
-                    len = sprintf(tmp, "<a class='pager' href=\"/\">1</a>");
-                else
-                    len = sprintf(tmp, "<a class='pager' href=\"/page/%d\">%d</a>", i, i);
-
-            mg_send_data(conn, tmp, len);
-        }
+    cclong current_page = endID / threads_per_page;
+    queue<string> before, after;
+    for (cclong i = 1; i <= (maxPageShown == 0 || admin_view ? 10000 : maxPageShown); ++i){
+        if (current_page - i < 4 && current_page - i > 0) before.push(to_string(i));
+        else if (i - current_page < 4 && i - current_page > 0) after.push(to_string(i));
+        else if (i - current_page > 4) break;
     }
-    mg_printf_data(conn, "<a class='pager pager-arrow' href=\"/page/%d\">"STRING_NEXT_PAGE"</a>", ++current_page);
-    // mg_printf_data(conn, "|<a class='pager' href='/gallery/1'>&#128444;&nbsp;"STRING_GALLERY_PAGE"</a>");
-    mg_printf_data(conn, "</div><br style='clear:both'>");
     
-    // clock_t endc = clock();
-    // PRINT_TIME();
+    templates.invoke("pager").toggle("timeline_page") \
+        .var("CURRENT_PAGE", current_page) \
+        .var("PREVIOUS_PAGE", current_page > 1 ? (current_page - 1) : 1) \
+        .var("NEXT_PAGE", current_page + 1) \
+        .loop("before_pages", before).loop("after_pages", after).pipe_to(conn).destory();
 }
 
 void showThread(mg_connection* conn, cclong id, bool reverse = false){ 
     struct Thread *r = readThread_(pDb, id); // get the root thread
     cclong c = 0;
 
-    bool admin_view = verifyAdmin(conn);
+    bool admin_view = is_admin(conn);
 
-    //sendThread(conn, r, false, false, false, false, admin_view);
     sendThread(conn, r, 0, admin_view);
     mg_printf_data(conn, "<hr>");
 
     char iid[10];
     strcpy(iid, r->ssid);
 
-    // char zztmp[512] = {0};
-    // int len = sprintf(zztmp, "/post_reply/%d", id); zztmp[len] = 0;
-
-    mg_printf_data(conn, "<a class='wp-btn' href='/%s/%d'>%s</a><br>", 
-                reverse ? "thread" : "daerht", id, reverse ? STRING_VIEW_ASCEND : STRING_VIEW_DESCEND);
-
     if(!archiveMode) {
         templates.invoke("post_form") \
-            .var("THREAD_NO", to_string(id)).toggle("reply_to_thread").pipe_to(conn).destory();
+            .var("THREAD_NO", to_string(id)).toggle("reply_to_thread").toggle("is_admin", admin_view).pipe_to(conn).destory();
     }
     // if(admin_view) ADMIN_VIEW();
         
@@ -738,34 +609,38 @@ void showThread(mg_connection* conn, cclong id, bool reverse = false){
     // PRINT_TIME();
 }
 
-void userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
-    char *username = verifyCookie(conn);
+bool userDeleteThread(mg_connection* conn, cclong tid, bool admin = false){
+    string username = verify_cookie(conn);
+    bool flag = false;
 
-    if (username){
+    if (!username.empty()){
         struct Thread* t = readThread_(pDb, tid);
 
-        if (strcmp(t->ssid, username) == 0 || admin){
+        if (strcmp(t->ssid, username.c_str()) == 0 || admin){
             deleteThread(pDb, tid);
-            printMsg(conn, STRING_DELETE_SUCCESS, tid);
+            // printMsg(conn, STRING_DELETE_SUCCESS, tid);
             logLog("Thread No.%d Deleted", tid);
+            flag = true;
         }
         else{
-            printMsg(conn, STRING_NO_PERMISSION);
+            // printMsg(conn, STRING_NO_PERMISSION);
+            flag = false;
         }
 
         if(t) delete t;
     }else
-        printMsg(conn, STRING_NO_PERMISSION);
+        // printMsg(conn, STRING_NO_PERMISSION);
+        flag = false;
 
-    delete [] username;
+    return flag;
 }
 
 void userListThread(mg_connection* conn, bool admin_view = false){
-    char *username = verifyCookie(conn);
+    string username = verify_cookie(conn);
 
     templates.invoke("site_header").toggle("my_post_page").pipe_to(conn).destory();
 
-    if (username){
+    if (!username.empty()){
         struct Thread *r = readThread_(pDb, 0); 
         struct Thread *t;
 
@@ -774,7 +649,7 @@ void userListThread(mg_connection* conn, bool admin_view = false){
             t = readThread_(pDb, i);
             if(r->childCount - i > 500 && !admin_view) break; // only search the most recent 500 threads/replies
 
-            if(strcmp(username, t->ssid) == 0 || admin_view)
+            if(strcmp(username.c_str(), t->ssid) == 0 || admin_view)
                 //sendThread(conn, t, true, false, true, true, false);
                 sendThread(conn, t, SEND_IS_REPLY + SEND_CUT_LONG_COMMENT + SEND_CUT_IMAGE, admin_view);
 
@@ -788,8 +663,6 @@ void userListThread(mg_connection* conn, bool admin_view = false){
     }else{
         site_footer(conn);
     }
-
-    delete [] username;
 }
 
 void postSomething(mg_connection* conn, const char* uri){
@@ -804,7 +677,7 @@ void postSomething(mg_connection* conn, const char* uri){
     //first check the ip
     if(!checkIP(conn)) return;
     if(archiveMode) return;
-    bool admin_ctrl = verifyAdmin(conn);
+    bool admin_ctrl = is_admin(conn);
     //get the post form data
     char dump_name[12];
     unqlite_util_random_string(pDb, dump_name, 11);
@@ -819,30 +692,36 @@ void postSomething(mg_connection* conn, const char* uri){
         return;
     }
 
+    #define GET_VAR(x, l, v) \
+        if (strcmp(var_name, x) == 0) { \
+            data_len = data_len > l ? l : data_len; \
+            strncpy(v, data, data_len); \
+            v[data_len] = 0; }
+
     while ((mofs = mg_parse_multipart(conn->content + ofs, conn->content_len - ofs,
         var_name, sizeof(var_name),
         file_name, sizeof(file_name),
         &data, &data_len)) > 0) {
         
         ofs += mofs;
-
-        if (strcmp(var_name, "input_name") == 0) {  //var1: the subject of the thread
-            data_len = data_len > 63 ? 63 : data_len;
-            strncpy(var1, data, data_len);
-            var1[data_len] = 0;
-        }
-
-        if (strcmp(var_name, "input_email") == 0) { //var3: the options
-            data_len = data_len > 63 ? 63 : data_len;
-            strncpy(var3, data, data_len);
-            var3[data_len] = 0;
-        }
-
-        if (strcmp(var_name, "input_content") == 0) { //var2: the comment
-            data_len = data_len > 4095 ? 4095 : data_len;
-            strncpy(var2, data, data_len);
-            var2[data_len] = 0;
-        }
+        GET_VAR("input_name", 63, var1);
+        // if (strcmp(var_name, "input_name") == 0) {  //var1: the subject of the thread
+        //     data_len = data_len > 63 ? 63 : data_len;
+        //     strncpy(var1, data, data_len);
+        //     var1[data_len] = 0;
+        // }
+        GET_VAR("input_email", 63, var3);
+        // if (strcmp(var_name, "input_email") == 0) { //var3: the options
+        //     data_len = data_len > 63 ? 63 : data_len;
+        //     strncpy(var3, data, data_len);
+        //     var3[data_len] = 0;
+        // }
+        GET_VAR("input_content", 4095, var2);
+        // if (strcmp(var_name, "input_content") == 0) { //var2: the comment
+        //     data_len = data_len > 4095 ? 4095 : data_len;
+        //     strncpy(var2, data, data_len);
+        //     var2[data_len] = 0;
+        // }
 
         if (strcmp(var_name, "input_file") == 0 && strcmp(file_name, "") != 0) {    //var4: the image attached (if has)
             // strcpy(var4, "");
@@ -887,8 +766,8 @@ void postSomething(mg_connection* conn, const char* uri){
         }
     }
 
-    //logLog("New Thread Before: '%s', '%s', '%s', '%s'", var1, var2, var3, var4);
-// logLog("%s", var4);
+    #undef GET_VAR
+
     //see if there is a SPECIAL string in the text field
     if (strcmp(var1, "") == 0) strcpy(var1, STRING_UNTITLED);
     //user trying to sega a thread/reply
@@ -897,7 +776,10 @@ void postSomething(mg_connection* conn, const char* uri){
     if (strstr(var3, "delete")){
         cclong id = extractLastNumber(conn);
         struct Thread * t = readThread_(pDb, id); //what he replies to is which he wants to delete
-        userDeleteThread(conn, id, admin_ctrl);
+        if(userDeleteThread(conn, id, admin_ctrl))
+            printMsg(conn, STRING_DELETE_SUCCESS, id);
+        else
+            printMsg(conn, STRING_NO_PERMISSION);
         return;
     }
     if (strstr(var3, "list")){
@@ -906,10 +788,8 @@ void postSomething(mg_connection* conn, const char* uri){
     }
     if (strstr(var3, "url")){
         templates.invoke("site_header").toggle("upload_image_page").pipe_to(conn).destory();
-
-        mg_printf_data(conn, "Image uploaded: <div style='background-color:white; padding: 1em;border: dashed 1px'>"
-            "http://%s:%d/images/%s</div></div></body></html>", 
-            conn->local_ip, conn->local_port, var4);
+        templates.invoke("info_page").toggle("upload_image_page").var("IMAGE", var4).pipe_to(conn).destory();
+        site_footer(conn);
 
         logLog("Image Uploaded But Not As New Thread");
         return;
@@ -931,26 +811,13 @@ void postSomething(mg_connection* conn, const char* uri){
         logLog("Admin Edited Thread No.%d", t->threadID);
         return;
     }
-    // if (strstr(var3, "mod-") && admin_ctrl){    
-    //     string ent = split(string(var3), "-")[1];
-    //     writeString(pDb, (char*)ent.c_str(), var2, true);
-        
-    //     printMsg(conn, "You have updated the %s", ent.c_str());
-    //     logLog("Var '%s' Updated", ent.c_str());
-    //     return;
-    // }
     
     char ipath[64]; FILE *fp; struct stat st;
     sprintf(ipath, "images/%s", var3);
     
-    // 
-    // if (stat(ipath, &st) == 0 && (fp = fopen(ipath, "rb")) != NULL && strcmp(var3, "") != 0)
-        // strncpy(var4, var3, 16);
-    // else{
         //image or comment or both
     if (strcmp(var2, "") == 0 && !fileAttached) {
         printMsg(conn, STRING_EMPTY_COMMENT);
-        logLog("'%s'", dump_name);
         return;
     }else if (strcmp(var2, "") == 0 && fileAttached){
         strcpy(var2, STRING_UNCOMMENTED);
@@ -958,37 +825,34 @@ void postSomething(mg_connection* conn, const char* uri){
     // }
     //logLog("addr: %d %d %d %d %d", var1, var2, var3, var4, ipath);
     //verify the cookie
-    char ssid[100];//, username[10];
-    char *username = verifyCookie(conn);
-    // if (strstr(var3, "|") && strlen(var3) == 42)
-    //  strcpy(ssid, var3);
-    // else
-    mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
+    // char ssid[100];//, username[10];
+    string username = verify_cookie(conn);
+    string ssid = extract_ssid(conn);
+    // mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
 
-    if (username){  //passed
-        string findID(username);
-        if(strcmp(ssid, adminCookie) != 0)
-            if (IDBanList.find(findID) != IDBanList.end()){
-                //this id is banned, so we destory it
-                destoryCookie(conn);
-                logLog("Cookie Destoryed: '%s'", ssid);
-                printMsg(conn, STRING_YOUR_ID_IS_BANNED);
-                return;
-            }
+    if (!username.empty()){  //passed
+        string findID = username;
+        // if(strcmp(ssid, adminCookie) != 0)
+        if (IDBanList.find(findID) != IDBanList.end()){
+            //this id is banned, so we destory it
+            destoryCookie(conn);
+            logLog("Cookie Destoryed: '%s'", ssid.c_str());
+            printMsg(conn, STRING_YOUR_ID_IS_BANNED);
+            return;
+        }
     }else{
         if (stopNewcookie){
             printMsg(conn, STRING_STOP_COOKIE);
             return;
         }
         else{
-            username = new char[10];
-            strcpy(username, giveNewCookie(conn));
-            strcpy(ssid, renewCookie(username));
+            username = random_9chars();
+            ssid = to_ssid(username);
         }
     }
 
-    if (strcmp(var3, adminPassword) == 0) strcpy(username, "Admin");
-    if (admin_ctrl) strcpy(username, "Admin");
+    // if (strcmp(var3, adminPassword) == 0) strcpy(username, "Admin");
+    if (admin_ctrl) username = "Admin";
 
     //replace some important things
     string tmpcontent(var2);    cleanString(tmpcontent);
@@ -1027,14 +891,14 @@ void postSomething(mg_connection* conn, const char* uri){
         struct Thread* t = readThread_(pDb, id);
 
         if(t->state & TOOMANY_REPLIES){
-            printMsg(conn, STRING_NO_REPLY_TO_TOOMANY, autoLockThread);
+            printMsg(conn, STRING_NO_REPLY_TO_TOOMANY, max_replies);
             delete t;
             return;
         }
 
         if(t->childThread){
             struct Thread* tc = readThread_(pDb, t->childThread);
-            if(tc->childCount >= autoLockThread - 1){
+            if(tc->childCount >= max_replies - 1){
                 changeState(t, TOOMANY_REPLIES, true);
                 writeThread(pDb, t->threadID, t, true);
             }
@@ -1044,17 +908,17 @@ void postSomething(mg_connection* conn, const char* uri){
         if(t->state & LOCKED_THREAD)
             printMsg(conn, STRING_NO_REPLY_TO_LOCKED);
         else{
-            newReply(pDb, id, tmpcontent.c_str(), var1, cip, username, var4, sage);
+            newReply(pDb, id, tmpcontent.c_str(), var1, cip, username.c_str(), var4, sage);
             
-            mg_printf(conn, "HTTP/1.1 302 Moved Temporarily\r\nLocation: /success/%s/%d\r\n\r\n", ssid, id);
+            mg_printf(conn, "HTTP/1.1 302 Moved Temporarily\r\nLocation: /success/%s/%d\r\n\r\n", ssid.c_str(), id);
         }
 
         if(t) delete t;
     }
     else{
-        newThread(pDb, tmpcontent.c_str(), var1, cip, username, var4, sage);
+        newThread(pDb, tmpcontent.c_str(), var1, cip, username.c_str(), var4, sage);
         //printMsg(conn, "Successfully start a new thread");
-        mg_printf(conn, "HTTP/1.1 302 Moved Temporarily\r\nLocation: /success/%s/0\r\n\r\n", ssid);
+        mg_printf(conn, "HTTP/1.1 302 Moved Temporarily\r\nLocation: /success/%s/0\r\n\r\n", ssid.c_str());
     }
 }
 
@@ -1065,17 +929,18 @@ void returnPage(mg_connection* conn, bool indexPage, bool galleryPage = false){
     templates.invoke("site_header").var("CURRENT_PAGE", num) \  
         .toggle(!galleryPage ? "timeline_page" : "gallery_page").pipe_to(conn).destory();
 
-    if(!archiveMode) templates.invoke("post_form").toggle("post_new_thread").pipe_to(conn).destory();
+    if(!archiveMode) 
+        templates.invoke("post_form").toggle("is_admin", is_admin(conn)).toggle("post_new_thread").pipe_to(conn).destory();
 
     clock_t startc = clock();
 
     if(indexPage)
-        showThreads(conn, 1, threadsPerPage);
+        showThreads(conn, 1, threads_per_page);
     else{
         cclong cp = extractLastNumber(conn);
-        if(cp <= maxPageShown || maxPageShown == 0){
-            cclong j = cp * threadsPerPage;
-            cclong i = j - threadsPerPage + 1;
+        if(cp <= maxPageShown || maxPageShown == 0 || is_admin(conn)){
+            cclong j = cp * threads_per_page;
+            cclong i = j - threads_per_page + 1;
             if(galleryPage)
                 showGallery(conn, i, j);
             else
@@ -1092,55 +957,136 @@ void admin_actions(struct mg_connection *conn){
         printMsg(conn, STRING_UNKNOWN_ERROR);
         return;
     }
+    char action_name[32] = {0}, action_param1[32] = {0}, action_param2[32] = {0};
+    string action, param1, param2;
 
-    int data_len, ofs = 0, mofs = 0;
-    char var_name[100], file_name[100];
-    const char *data;
-    map<string, string> actions;
+    mg_get_var(conn, "action_name", action_name, sizeof(action_name)); action = string(action_name);
+    mg_get_var(conn, "action_1", action_param1, sizeof(action_param1)); param1 = string(action_param1);
+    mg_get_var(conn, "action_2", action_param2, sizeof(action_param2)); param2 = string(action_param2);
 
-    while ((mofs = mg_parse_multipart(conn->content + ofs, conn->content_len - ofs,
-        var_name, sizeof(var_name),
-        file_name, sizeof(file_name),
-        &data, &data_len)) > 0) {
-        
-        ofs += mofs;
+    if(action == ""){
+        printMsg(conn, STRING_UNKNOWN_ERROR);
+        return;
+    }
+    
+    #define HAS_KEY(x) x == action
 
-        char var1[512] = {0};
-        strncpy(var1, data, data_len);
+    string ret = "Action completed.";
 
-        actions[string(var_name)] = string(var1);
+    if(HAS_KEY("login") && param1 == admin_password){
+        string ssid = extract_ssid(conn);
+
+        string new_name = random_9chars();
+        ssid = to_ssid(new_name.c_str());
+        set_cookie(conn, ssid);
+
+        // strncpy(adminCookie, ssid, 64);
+        admin_cookie = ssid;
+        logLog("Set New Admin Cookie '%s' by '%s'", admin_cookie.c_str(), get_client_ip(conn));
     }
 
-    if(HAS_KEY("password")){
-        if(actions["password"] == adminPassword){
-            char ssid[128]; 
-            mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-
-            if(strcmp(ssid, "") != 0){
-                strncpy(adminCookie, ssid, 64);
-                printMsg(conn, "Admin's cookie has been set to %s", adminCookie);
-                logLog("Set New Admin Cookie '%s' by '%s'", adminCookie, get_client_ip(conn));
-                return;
-            }
-            else{
-                printMsg(conn, "Can't set admin's cookie to null");
-                return;
-            }
-        }
-    }
-
-    if(!verifyAdmin(conn)) {
+    if(!is_admin(conn)) {
         printMsg(conn, STRING_NO_PERMISSION);
         checkIP(conn, true);
         return;
     }
 
-    if(HAS_KEY("cookie"))               stopNewcookie = (actions["cookie"] == "off");
-    if(HAS_KEY("archive"))              archiveMode = (actions["archive"] == "on");
-    if(HAS_KEY("max-page-viewable"))    maxPageShown = atol(actions["max-page-viewable"].c_str());
-    if(HAS_KEY("quit-admin"))           strcpy(adminCookie, adminPassword);
+    if(HAS_KEY("cookie"))               stopNewcookie = (param1 == "off");
+    if(HAS_KEY("archive"))              archiveMode = (param1 == "on");
+    if(HAS_KEY("acl"))                  stop_check_ip = (param1 == "off");
+    if(HAS_KEY("max-page-viewable"))    maxPageShown = atol(param1.c_str());
+    if(HAS_KEY("cd-time"))              postCDTime = atol(param1.c_str());
+    if(HAS_KEY("threads-per-page"))     threads_per_page = atol(param1.c_str());
+    if(HAS_KEY("max-replies"))          max_replies = atol(param1.c_str());
+    if(HAS_KEY("quit-admin"))           {admin_cookie = random_9chars(); ret = "quitted";}
+    if(HAS_KEY("new-password"))         admin_password = param1;
+    if(HAS_KEY("delete-thread"))        userDeleteThread(conn, atol(param1.c_str()), true);
+    if(HAS_KEY("max-image-size"))       maxFileSize = atol(param1.c_str());
+    if(HAS_KEY("new-state") && !param1.empty()){
+        int id = atol(param1.c_str());
+
+        struct Thread * t = readThread_(pDb, id);
+        t->state = atol(param2.c_str());
+        writeThread(pDb, t->threadID, t, true);
+
+        ret += (" New state: " + resolve_state(t->state));
+        delete t;
+    }
+    if(HAS_KEY("ban")){
+        string id = param1;
+        unordered_set<string>& xlist = (param2 == "ip") ? IPBanList : IDBanList;
+
+        auto iter = xlist.find(id);
+        if (iter == xlist.end()){
+            xlist.insert(id);
+            ret += (" " + id + " banned");
+        }
+        else{
+            xlist.erase(iter);
+            ret += (" " + id + " unbanned");
+        }
+
+        std::ofstream f(banListPath);
+        for(auto i = IPBanList.begin(); i != IPBanList.end(); ++i) f << *i << '\n';
+        for(auto j = IDBanList.begin(); j != IDBanList.end(); ++j) f << "ID:" << *j << '\n';
+        f.close();
+    }
+    if(HAS_KEY("hide-image")){
+        struct Thread * t = readThread_(pDb, atol(param1.c_str()));
+        
+        string oldname = "images/" + string(t->imgSrc);
+        string newname = oldname + ".tmp";
+        rename(oldname.c_str(), newname.c_str());
+
+        delete t;
+    }
+    if(HAS_KEY("kill-all")){
+        string id = param1;
+
+        struct Thread *r = readThread_(pDb, 0); 
+        struct Thread *t;
+        bool ipflag = (param2 == "ip");
+
+        clock_t startc = clock();
+        for(cclong i = r->childCount; i > 0; i--){
+            t = readThread_(pDb, i);
+            if(ipflag){
+                if(strcmp(id.c_str(), t->email) == 0) deleteThread(pDb, i);
+            }else{
+                if(strcmp(id.c_str(), t->ssid) == 0) deleteThread(pDb, i);
+            }
+
+            if(t) delete t;
+        }
+        clock_t endc = clock();
+
+        if(r) delete r;
+        ret += (" Take " + to_string((float)(endc-startc)/CLOCKS_PER_SEC));
+    }
+
+    if(HAS_KEY("search")){
+        struct Thread *t, *r = readThread_(pDb, 0); 
+        int c = 0, limit = atol(param2.c_str());
+        ret = "[";
+
+        for(cclong i = r->childCount; i > 0; i--){
+            if(++c == limit) break;
+            t = readThread_(pDb, i);
+            char* content = readString(pDb, t->content);
+            if(content && strstr(content, param1.c_str())){
+                ret += ("\"" + to_string(t->threadID) + "\",");
+                delete content;
+            }
+            delete t;
+        }
+
+        ret += "\"\"]";
+
+        if(r) delete r;
+    }
     
-    printMsg(conn, "ok");
+    mg_send_header(conn, "Content-Type", "text/plain");
+    mg_printf_data(conn, ret.c_str());
 }
 
 static void sendReply(struct mg_connection *conn) {
@@ -1158,8 +1104,8 @@ static void sendReply(struct mg_connection *conn) {
             return;
         }
         cclong id  = atol(tmp[tmp.size() - 1].c_str());
-        //renewCookie(conn, username);
-        setCookie(conn, tmp[tmp.size() - 2].c_str());
+
+        set_cookie(conn, tmp[tmp.size() - 2]);
         mg_send_header(conn, "charset", "utf-8");
         mg_send_header(conn, "Content-Type", "text/html");
         mg_send_header(conn, "cache-control", "private, max-age=0");
@@ -1178,7 +1124,7 @@ static void sendReply(struct mg_connection *conn) {
         struct Thread* t = readThread_(pDb, id);
         cclong pid = findParent(pDb, t);
 
-        if (pid == -1 && !verifyAdmin(conn)){
+        if (pid == -1 && !is_admin(conn)){
             printMsg(conn, STRING_THREAD_DELETED);
             return ;
         }
@@ -1190,14 +1136,11 @@ static void sendReply(struct mg_connection *conn) {
                 return;
             }
 
-            //printHeader(conn, ("No." + to_string(id) + " " + string(t->author)).c_str());
             templates.invoke("site_header").toggle("thread_page") \
                 .var("THREAD_NO", id).var("THREAD_TITLE", t->author).pipe_to(conn).destory();
 
-            if (pid)
-                mg_printf_data(conn, "<a href='/thread/%d'>&#171; No.%d</a><hr>", pid, pid);
-            else
-                mg_printf_data(conn, "<a href='/'>&#171; "STRING_HOMEPAGE"</a><hr>");
+            templates.invoke("single_thread_header").toggle("homepage", !pid).var("THREAD_NO", id) \
+                .toggle("thread", strstr(conn->uri, "/thread/")).pipe_to(conn).destory();
 
             clock_t startc = clock();
             showThread(conn, id, strstr(conn->uri, "/daerht/"));
@@ -1211,143 +1154,11 @@ static void sendReply(struct mg_connection *conn) {
     else if (strstr(conn->uri, "/api/")){
         cclong id = extractLastNumber(conn);
         struct Thread *r = readThread_(pDb, id); // get the root thread
-        bool admin_view = verifyAdmin(conn);
+        bool admin_view = is_admin(conn);
 
-        // if (!(r->state & NORMAL_DISPLAY)){
-        //     //printMsg(conn, "This thread has been deleted");
-        //     mg_printf_data(conn, "<Invalid Thread>");
-        //     return;
-        // }
-        // else
-            //sendThread(conn, r, false, false, false, false, admin_view);
-            sendThread(conn, r, 0, admin_view);
+        sendThread(conn, r, 0, admin_view);
 
         delete r;       //return a thread's plain HTML
-    }
-    // else if (strstr(conn->uri, "/ascend/")){
-    //     if(!checkIP(conn, true)) return;
-
-    //     if(strstr(conn->uri, adminPassword)){
-    //         char ssid[128]; 
-    //         mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-
-    //         if(strcmp(ssid, "") != 0){
-    //             strncpy(adminCookie, ssid, 64);
-    //             printMsg(conn, "Admin's cookie has been set to %s", adminCookie);
-    //             logLog("Set New Admin Cookie '%s' by '%s'", adminCookie, get_client_ip(conn));
-    //         }
-    //         else
-    //             printMsg(conn, "Can't set admin's cookie to null");
-    //     }else{
-    //         printMsg(conn, STRING_NO_PERMISSION);
-    //         checkIP(conn, true);
-    //     }   //ascend the admin privilege using new cookie
-    // }
-    // else if (strstr(conn->uri, "/acquire/")){
-    //     if(!checkIP(conn, true)) return;
-
-    //     if(strstr(conn->uri, adminPassword)){
-    //         setCookie(conn, adminCookie);
-    //         printMsg(conn, "Acquire admin's cookie: %s", adminCookie);
-    //         logLog("Acquire Admin Cookie '%s' by '%s'", adminCookie, get_client_ip(conn));
-    //     }else{
-    //         printMsg(conn, STRING_NO_PERMISSION);
-    //         checkIP(conn, true);
-    //     }   //transfer the admin privilege to a new browser
-    // }
-    // else if (strstr(conn->uri, "/abdicate/")){
-    //     if(!checkIP(conn, true)) return;
-
-    //     if(strstr(conn->uri, adminPassword)){
-    //         strcpy(adminCookie, adminPassword);
-    //         printMsg(conn, "Admin has abdicated");
-    //         logLog("Admin Has Abdicated");
-    //     }else{
-    //         printMsg(conn, STRING_NO_PERMISSION);
-    //         checkIP(conn, true);
-    //     }   //drop the admin privilege
-    // }
-    else if (strstr(conn->uri, "/state/")){
-        if(!checkIP(conn, true)) return;
-
-        string url(conn->uri);
-        vector<string> tmp = split(url, "/");
-
-        cclong newstate = atol(tmp[tmp.size() - 1].c_str());
-        cclong tid  = atol(tmp[tmp.size() - 2].c_str());
-
-        if (verifyAdmin(conn)){
-            struct Thread * t = readThread_(pDb, tid);
-            t->state = newstate;
-            writeThread(pDb, t->threadID, t, true);
-            printMsg(conn, "Thread's state updated successfully");
-
-            delete t;
-        }else{
-            printMsg(conn, STRING_NO_PERMISSION);
-            checkIP(conn, true);
-        }       //update a thread's state
-    }
-    else if (strstr(conn->uri, "/delete/")){
-        cclong id = extractLastNumber(conn);
-        struct Thread * t = readThread_(pDb, id); 
-
-        if (verifyAdmin(conn))
-            userDeleteThread(conn, id, true);
-        else{
-            printMsg(conn, STRING_NO_PERMISSION);
-            checkIP(conn, true);
-        }       //delete a thread
-
-        delete t;
-    }
-    else if (strstr(conn->uri, "/sage/")){
-        if (verifyAdmin(conn))
-            doThread(conn, extractLastNumber(conn), SAGE_THREAD);
-        else{
-            printMsg(conn, STRING_NO_PERMISSION);
-            checkIP(conn, true);
-        }       //sage a thread
-    }
-    else if (strstr(conn->uri, "/lock/")){
-        if (verifyAdmin(conn))
-            doThread(conn, extractLastNumber(conn), LOCKED_THREAD);
-        else{
-            printMsg(conn, STRING_NO_PERMISSION);
-            checkIP(conn, true);
-        }       //lock a thread
-    }
-    else if (strstr(conn->uri, "/ban/")){
-        string url(conn->uri);
-        vector<string> tmp = split(url, "/");
-        string id = tmp[tmp.size() - 1];
-
-        if (verifyAdmin(conn)){
-            unordered_set<string>& xlist = strstr(conn->uri, "/ip/") ? IPBanList : IDBanList;
-
-            auto iter = xlist.find(id);
-            if (iter == xlist.end()){
-                xlist.insert(id);
-                printMsg(conn, "You have banned ID/IP: %s", id.c_str());
-                logLog("ID/IP Banned: '%s'", id.c_str());
-            }
-            else{
-                xlist.erase(iter);
-                printMsg(conn, "You have UNbanned ID/IP: %s", id.c_str());
-                logLog("ID/IP Unbanned: '%s'", id.c_str());
-            }
-
-            std::ofstream f(banListPath);
-            for(auto i = IPBanList.begin(); i != IPBanList.end(); ++i)
-                f << *i << '\n';
-            for(auto j = IDBanList.begin(); j != IDBanList.end(); ++j)
-                f << "ID:" << *j << '\n';
-            f.close();
-        }
-        else{
-            printMsg(conn, STRING_NO_PERMISSION);
-            checkIP(conn, true);
-        }       //ban ID/IP
     }
     else if (strstr(conn->uri, "/list")){
         if(!checkIP(conn, true)) return;
@@ -1356,11 +1167,11 @@ static void sendReply(struct mg_connection *conn) {
         vector<string> tmp = split(url, "/");
         string id = tmp[tmp.size() - 1];
 
-        if (verifyAdmin(conn)){
+        if (is_admin(conn)){
             // the following actions could be extremely slow
             struct Thread *r = readThread_(pDb, 0); 
             struct Thread *t;
-            bool ipflag = strstr(conn->uri, "/ip/"), killflag = strstr(conn->uri, "/kill/");
+            bool ipflag = strstr(conn->uri, "/ip/");
 
             if (strcmp(conn->uri, "/list") == 0){
                 userListThread(conn, true);
@@ -1373,20 +1184,9 @@ static void sendReply(struct mg_connection *conn) {
             for(cclong i = r->childCount; i > 0; i--){
                 t = readThread_(pDb, i);
                 if(ipflag){
-                    if(strcmp(id.c_str(), t->email) == 0){
-                        if(killflag)
-                            deleteThread(pDb, i);
-                        else
-                            //sendThread(conn, t, true, false, true, true, true);
-                            sendThread(conn, t, SEND_IS_REPLY + SEND_CUT_LONG_COMMENT + SEND_CUT_IMAGE, true);
-                    }
+                    if(strcmp(id.c_str(), t->email) == 0) sendThread(conn, t, SEND_IS_REPLY + SEND_CUT_LONG_COMMENT + SEND_CUT_IMAGE, true);
                 }else{
-                    if(strcmp(id.c_str(), t->ssid) == 0){
-                        if(killflag)
-                            deleteThread(pDb, i);
-                        else
-                            sendThread(conn, t, SEND_IS_REPLY + SEND_CUT_LONG_COMMENT + SEND_CUT_IMAGE, true);
-                    }
+                    if(strcmp(id.c_str(), t->ssid) == 0) sendThread(conn, t, SEND_IS_REPLY + SEND_CUT_LONG_COMMENT + SEND_CUT_IMAGE, true);
                 }
 
                 if(t) delete t;
@@ -1402,21 +1202,6 @@ static void sendReply(struct mg_connection *conn) {
             userListThread(conn);
             //checkIP(conn, true);
         }       //list ID/IP, kill all posted by ID/IP
-    }
-    else if (strstr(conn->uri, "/rename/")){
-        string url(conn->uri);
-        vector<string> tmp = split(url, "/");
-        string oldname = "images/" + tmp[tmp.size() - 1];
-        string newname = oldname + ".tmp";
-
-        if (verifyAdmin(conn)){
-            rename(oldname.c_str(), newname.c_str());
-            printMsg(conn, "Rename image from %s to %s", oldname.c_str(), newname.c_str());
-        }
-        else{
-            printMsg(conn, STRING_NO_PERMISSION);
-            checkIP(conn, true);
-        }   //rename an image
     }
     else if (strstr(conn->uri, "/images/")){
         const char *ims = mg_get_header(conn, "If-Modified-Since");
@@ -1470,7 +1255,7 @@ static void sendReply(struct mg_connection *conn) {
         }   //image
     }
     else if (strstr(conn->uri, "/adminconsole/")){
-        if (verifyAdmin(conn)){
+        if (is_admin(conn)){
             cclong id = extractLastNumber(conn);
             struct Thread * t = readThread_(pDb, id); 
             requestAdminConsole(conn, t);
@@ -1481,12 +1266,25 @@ static void sendReply(struct mg_connection *conn) {
         }   //admin console plain HTML
     }
     else if (strcmp(conn->uri, "/admin") == 0){
+        string ip_ban_list = "";
+        string id_ban_list = "";
+        for(auto i = IPBanList.begin(); i != IPBanList.end(); ++i) ip_ban_list += (*i + ",");
+        for(auto j = IDBanList.begin(); j != IDBanList.end(); ++j) id_ban_list += (*j + ",");
+
         templates.invoke("site_header").toggle("admin_panel_page").pipe_to(conn).destory();
         templates.invoke("admin_panel") \
-            .toggle("is_admin", verifyAdmin(conn)) \
+            .toggle("is_admin", is_admin(conn)) \
             .toggle("cookie", !stopNewcookie) \
             .toggle("archive", archiveMode) \
+            .toggle("acl", !stop_check_ip) \
             .var("MAX_PAGES_VIEWABLE", maxPageShown) \
+            .var("IP_BAN_LIST", ip_ban_list) \
+            .var("ID_BAN_LIST", id_ban_list) \
+            .var("COOLDOWN_TIME", postCDTime) \
+            .var("MAX_IMAGE_SIZE", maxFileSize) \
+            .var("THREADS_PER_PAGE", threads_per_page) \
+            .var("MAX_REPLIES", max_replies) \
+            .var("ADMIN_PASSWORD", admin_password) \
             .pipe_to(conn).destory();
         site_footer(conn);
     }
@@ -1527,7 +1325,7 @@ static void broadcastMessage(struct mg_connection *conn){
         struct chatData *d2 = (struct chatData *) c->connection_param;
         if (!c->is_websocket || d2->roomID != d->roomID) continue;
 
-        if(strcmp(d->chatterSSID, adminCookie) == 0)
+        if(strcmp(d->chatterSSID, admin_cookie.c_str()) == 0)
             mg_websocket_printf(c, WEBSOCKET_OPCODE_TEXT, "msg %c Admin %d %.*s",
                       (char) d->roomID, rawtime, conn->content_len - 4, conn->content + 4);
         else
@@ -1560,7 +1358,7 @@ static void webChat(struct mg_connection *conn) {
 }
 
 static int eventHandler(struct mg_connection *conn, enum mg_event ev) {
-    char *username;
+    string username, ssid;
 
     switch(ev){
         case MG_REQUEST:
@@ -1577,26 +1375,21 @@ static int eventHandler(struct mg_connection *conn, enum mg_event ev) {
                 return MG_TRUE;
             }
         case MG_WS_CONNECT:
-            username = verifyCookie(conn);
-
-            // if (username){
-            char ssid[64];
-            mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, 64);
+            username = verify_cookie(conn);
+            ssid = extract_ssid(conn);
 
             conn->connection_param = new chatData();
-            strcpy(((struct chatData *)conn->connection_param)->chatterSSID, ssid);
+            strcpy(((struct chatData *)conn->connection_param)->chatterSSID, ssid.c_str());
 
-            if(username){
-                mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "id %s", username);
-                delete [] username;
-                
+            if(!username.empty()){
+                mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "id %s", username.c_str());               
             }else
                 mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "id (null)");
             
             if(chatHistory.size() > 0){
                     // for(auto i = chatHistory.size() - 1; i >= 0; i--){
                 for(auto i = 0; i < chatHistory.size(); ++i){
-                    if(strcmp(chatHistory[i]->chatterSSID, adminCookie) == 0)
+                    if(strcmp(chatHistory[i]->chatterSSID, admin_cookie.c_str()) == 0)
                         mg_websocket_printf(conn, WEBSOCKET_OPCODE_TEXT, "history %d Admin %s", 
                         chatHistory[i]->postTime, chatHistory[i]->message);
                     else
@@ -1660,10 +1453,9 @@ int main(int argc, char *argv[]){
         resetDatabase(pDb);
 
     //generate a random admin password
-    adminPassword = new char[11];
-
-    unqlite_util_random_string(pDb, adminPassword, 10); adminPassword[10] = 0;
-    strcpy(adminCookie, adminPassword);
+    admin_password = random_9chars();
+    admin_cookie = admin_password;
+    // strcpy(adminCookie, adminPassword);
     strcpy(banListPath, "ipbanlist");
     strcpy(thumbPrefix, "/images/");
 
@@ -1671,28 +1463,28 @@ int main(int argc, char *argv[]){
         // if(TEST_ARG("--reset",          "-r")) { logLog("Database: [New Profile]"); resetDatabase(pDb); }
         if(TEST_ARG("--set-counter",    "-C")) { writecclong(pDb, "global_counter", atoi(argv[++i]), true); }
         if(TEST_ARG("--title",          "-t")) { strncpy(siteTitle,     argv[++i], 64); continue; }
-        if(TEST_ARG("--admin-spell",    "-a")) { strncpy(adminPassword, argv[++i], 11); continue; }
+        if(TEST_ARG("--admin-spell",    "-a")) { admin_password = string(argv[++i]); continue; }
         if(TEST_ARG("--port",           "-p")) { strncpy(lport,         argv[++i], 64); continue; }
         if(TEST_ARG("--salt",           "-m")) { strncpy(md5Salt,       argv[++i], 64); continue; }
-        if(TEST_ARG("--admin-cookie",   "-A")) { strncpy(adminCookie,   argv[++i], 64); continue; }
+        // if(TEST_ARG("--admin-cookie",   "-A")) { strncpy(adminCookie,   argv[++i], 64); continue; }
         if(TEST_ARG("--ban-list",       "-b")) { strncpy(banListPath,   argv[++i], 64); continue; }
         if(TEST_ARG("--use-thumb",      "-S")) { strncpy(thumbPrefix,   argv[++i], 64); continue; }
-        if(TEST_ARG("--tpp",            "-T")) { threadsPerPage =  atoi(argv[++i]);     continue; }
+        if(TEST_ARG("--tpp",            "-T")) { threads_per_page =  atoi(argv[++i]);     continue; }
         if(TEST_ARG("--cd-time",        "-c")) { postCDTime =      atoi(argv[++i]);     continue; }
         if(TEST_ARG("--max-image-size", "-I")) { maxFileSize =     atoi(argv[++i]);     continue; }
-        if(TEST_ARG("--auto-lock",      "-L")) { autoLockThread =  atoi(argv[++i]);     continue; }
+        if(TEST_ARG("--auto-lock",      "-L")) { max_replies =  atoi(argv[++i]);     continue; }
         if(TEST_ARG("--page-shown",     "-P")) { maxPageShown =    atoi(argv[++i]);     continue; }
         if(TEST_ARG("--stop-cookie",    "-s")) stopNewcookie = true;
-        if(TEST_ARG("--stop-ipcheck",   "-i")) stopCheckIP = true;
+        if(TEST_ARG("--stop-ipcheck",   "-i")) stop_check_ip = true;
         // if(TEST_ARG("--xff-ip",         "-x")) useXFF = true;
         if(TEST_ARG("--archive",        "-Z")) archiveMode = true;
     }
 
-    logLog("Site Title: '%s' -> Admin Password: '%s'", siteTitle, adminPassword);
-    logLog("Threads Per Page: %d", threadsPerPage);
-    logLog("Cooldown Time: %ds", postCDTime);
-    logLog("MD5 Salt: '%s'", md5Salt);
-    logLog("Admin Cookie: '%s'", adminCookie);
+    // logLog("Site Title: '%s' -> Admin Password: '%s'", siteTitle, adminPassword);
+    // logLog("Threads Per Page: %d", threads_per_page);
+    // logLog("Cooldown Time: %ds", postCDTime);
+    // logLog("MD5 Salt: '%s'", md5Salt);
+    // logLog("Admin Cookie: '%s'", adminCookie);
 
     templates.add_template("single_thread");
     templates.add_template("expand_hidden_replies");
@@ -1703,6 +1495,8 @@ int main(int argc, char *argv[]){
     templates.add_template("site_slogan");
     templates.add_template("info_page");
     templates.add_template("admin_panel");
+    templates.add_template("pager");
+    templates.add_template("single_thread_header");
 
     std::ifstream f(banListPath);
     string line;

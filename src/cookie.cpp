@@ -7,7 +7,9 @@ extern bool stopNewcookie;
 extern unqlite *pDb;
 extern FILE* log_file;
 
-void setCookie(mg_connection *conn, const char *ssid){
+using namespace std;
+
+void set_cookie(mg_connection *conn, const std::string c){
 	char expire[100];
 	time_t t = time(NULL) + 60 * 60 * 24 * 30;
 	strftime(expire, sizeof(expire), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
@@ -18,7 +20,7 @@ void setCookie(mg_connection *conn, const char *ssid){
 		"Content-type: text/html\r\n"
 		"X-UA-Compatible: IE=edge\r\n"
 		"Content-Length: 0\r\n",
-		ssid, expire, 60 * 60 * 24 * 30);
+		c.c_str(), expire, 60 * 60 * 24 * 30);
 }
 
 char* generateSSID(const char *user_name) {
@@ -28,21 +30,32 @@ char* generateSSID(const char *user_name) {
 	return hash;
 }
 
-char* renewCookie(const char* username){
-	/*time_t rawtime;
-	time(&rawtime);
-	char timebuf[16];
-	int c = sprintf(timebuf, "%lu", rawtime); timebuf[c] = 0;*/
-
+string to_ssid(const char* username){
 	char newssid[33];
 	strcpy(newssid, generateSSID(username));
-	char *finalssid = new char[64];
+	char finalssid[64];// = new char[64];
 
 	int len = sprintf(finalssid, "%s|%s", username, newssid);
 	finalssid[len] = 0;
 
-	return finalssid;
+	std::string ret(finalssid);
+
+	return ret;
 }
+
+string to_ssid(const string username){
+	char newssid[33];
+	strcpy(newssid, generateSSID(username.c_str()));
+	char finalssid[64];// = new char[64];
+
+	int len = sprintf(finalssid, "%s|%s", username.c_str(), newssid);
+	finalssid[len] = 0;
+
+	std::string ret(finalssid);
+
+	return ret;
+}
+
 
 void destoryCookie(mg_connection *conn){
 	mg_printf(conn,
@@ -52,46 +65,37 @@ void destoryCookie(mg_connection *conn){
 		"Content-Length: 0\r\n");
 }
 
-char* giveNewCookie(mg_connection* conn){
+string random_9chars(){
 	if (stopNewcookie) return NULL;
 
-	char *username = new char(10);
+	char username[10];// = new char(10);
 	unqlite_util_random_string(pDb, username, 9);
 	username[9] = 0;
 
-	/*time_t rawtime;
-	time(&rawtime);
-	char timebuf[16];
-	int c = sprintf(timebuf, "%lu", rawtime); timebuf[c] = 0;*/
+	string ret(username);
 
-	char newssid[33];
-	strcpy(newssid, generateSSID(username));
-	char finalssid[64];
-
-	int len = sprintf(finalssid, "%s|%s", username, newssid);
-
-	//setCookie(conn, finalssid);
-
-	logLog("New Cookie Delivered: '%s'", finalssid);
-
-	return username;
+	return ret;
 }
 
-char* verifyCookie(mg_connection* conn){
-	char ssid[128];
-	char *username = new char[10];
-	mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-	vector<string> zztmp = split(string(ssid), string("|"));
-	if (zztmp.size() != 2) return NULL;
+string verify_cookie(mg_connection* conn){
+	// char ssid[128];
+	string ssid = extract_ssid(conn);
+	string username = "";
+	// char *username = new char[10];
+	// mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
+	vector<string> zztmp = split(ssid, string("|"));
+	if (zztmp.size() != 2) return username;
 
-	strncpy(username, zztmp[0].c_str(), 10);
-	char testssid[33];
-	strcpy(testssid, generateSSID(username));
+	username = zztmp[0];
 
-	if (strcmp(testssid, zztmp[1].c_str()) == 0)
-		return username;
-	else
-		return NULL;
+	string _ssid = to_ssid(username.c_str());
+	// strcpy(testssid, generateSSID(username));
+
+	return (_ssid == ssid) ? username : "";
+	// if (strcmp(testssid, zztmp[1].c_str()) == 0)
+	// 	return username;
+	// else
+	// 	return NULL;
 }
 
 char* verifyCookieStr(char* szSSID){

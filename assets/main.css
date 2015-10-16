@@ -276,6 +276,10 @@ pox{
     -moz-box-sizing:border-box;
     box-sizing:border-box;
 }
+.wp-btn-no-margin {
+    padding: 0;
+    margin: 0;
+}
 .wp-btn:active{
     background:#eee;
     border-color:#999;
@@ -384,4 +388,38 @@ span .wp-btn{
     text-decoration: none;
     border-bottom-left-radius:5px;
     border-bottom-right-radius:5px;
+}
+
+.alert-box-inverse{
+    border-bottom-left-radius:0;
+    border-bottom-right-radius:0;
+    border-top-left-radius:5px;
+    border-top-right-radius:5px;
+}
+
+.admin-warning-panel{
+    border:1px solid #d3d3d3;
+    border-radius:5px;
+    overflow:hidden;
+    background-color:white;
+}
+
+.admin-panel table tr td:last-child{
+    text-align: right;
+}
+
+#admin-password{
+    text-align: center;
+    background-color:transparent;
+    border: none;
+    position: absolute;
+    width:100px;
+    height:20px;
+    top:50%;
+    left:50%;
+    margin-top: -10px;
+    margin-left: -50px;
+    cursor: default;
+    color: transparent;
+    text-shadow: 0px 0px 5px black;
 }
