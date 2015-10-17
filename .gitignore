@@ -37,7 +37,7 @@
 Debug/
 Release/
 images/
-run-serve.sh
+run-server.sh
 old/
 cert/
 dump/
