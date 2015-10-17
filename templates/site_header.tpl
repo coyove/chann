@@ -44,8 +44,11 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 <meta charset='UTF-8'/><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'/>
 <link rel='icon' type='image/png' href='/images/favicon.png'>
+
 <link rel='stylesheet' type='text/css' href='/assets/font.css'>
 <link rel='stylesheet' type='text/css' href='/assets/main.css'>
+<link rel='stylesheet' type='text/css' href='/assets/admin.css'>
+
 <script type='text/javascript' src='/assets/main.js'></script>
 <script type='text/javascript'>
 
@@ -74,13 +77,13 @@ function ajst(id){
     }
 };
 
-function admc(id){
-    microAjax("/adminconsole/" + id, function (msg){
-        var elem=document.getElementById('admin-'+id);
-        elem.innerHTML=msg;
-        var n=elem.parentNode.nextSibling;
-        n.innerText=n.innerHTML;
-    });
+function admc(id, p){
+    var e =document.getElementById('admin-' + id);
+    e.style.display="block";
+
+    e.onmouseout = function(evt){
+        e.style.display="none";
+    }
 };
 
 function qref(id){
@@ -141,6 +144,30 @@ function exim(id,url){
 function isar(){
     if(!document.getElementById('input-area')) document.getElementById('start-new-thread').className='hiding';
     footeradj();
+
+    var dropdown = document.querySelectorAll('.dropdown');
+    var dropdownArray = Array.prototype.slice.call(dropdown, 0);
+    dropdownArray.forEach(function (el) {
+        var button = el.querySelector('a[data-toggle="dropdown"]'), menu = el.querySelector('.dropdown-menu'), arrow = button.querySelector('i.icon-arrow');
+        button.onclick = function (event) {
+            if (!menu.hasClass('show')) {
+                menu.classList.add('show');
+                menu.classList.remove('hide');
+                arrow.classList.add('open');
+                arrow.classList.remove('close');
+                event.preventDefault();
+            } else {
+                menu.classList.remove('show');
+                menu.classList.add('hide');
+                arrow.classList.remove('open');
+                arrow.classList.add('close');
+                event.preventDefault();
+            }
+        };
+    });
+    Element.prototype.hasClass = function (className) {
+        return this.className && new RegExp('(^|\\s)' + className + '(\\s|$)').test(this.className);
+    };
 }
 
 function footeradj(){

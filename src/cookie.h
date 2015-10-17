@@ -10,21 +10,20 @@ extern "C" {
 
 #include <vector>
 #include <time.h>
-#include "helper.h"
 #include <string>
 #include <cstring>
 
-void set_cookie(mg_connection *conn, const std::string c);
-char* generateSSID(const char *user_name);
+#include "helper.h"
 
-std::string to_ssid(const std::string username);
+void cck_send_ssid(mg_connection *conn, const std::string c);
 
-std::string random_9chars();
-void destoryCookie(mg_connection *conn);
-int renewCookie(mg_connection* conn, const char* username);
+std::string cck_create_ssid(const std::string username);
 
-std::string verify_cookie(mg_connection* conn);
+void cck_destory_ssid(mg_connection *conn);
 
-char* verifyCookieStr(char* szSSID);
+std::string cck_verify_ssid(mg_connection*);
+std::string cck_verify_ssid(std::string);
+
+std::string cck_extract_ssid(mg_connection* conn);
 
 #endif

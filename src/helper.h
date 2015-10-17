@@ -8,6 +8,7 @@
 #include <vector>
 #include <algorithm>
 #include <time.h>
+#include <sys/stat.h>
 
 #if defined(_WIN32)
 #define cclong long
@@ -20,32 +21,37 @@ extern "C"{
 #include "../lib/mongoose/mongoose.h"
 }
 
-#define TO_STRING_PLACEHOLDER "%tsp%"
-#define _N(a) TO_STRING_PLACEHOLDER, a
-#define BEGIN_STRING(x) szBuilder(x, sizeof(x)
-#define END_STRING NULL)
-#define _(x) #x
-
-//some c++ string functions to make life easier
-std::string 
-extract_ssid(mg_connection* conn);
+#include "cookie.h"
 
 std::vector<std::string> 
-split(const std::string &s, const std::string &seperator);
+cc_split(const std::string &s, const std::string &seperator);
 
 std::string 
-replaceAll(std::string str, const std::string& from, const std::string& to);
+cc_replace(std::string, const std::string&, const std::string&);
 
-bool endsWith(std::string const &fullString, std::string const &ending);
-bool startsWith(std::string const &fullString, std::string const &start);
+bool cc_ends_with(std::string const &, std::string const &);
+bool startsWith(std::string const &, std::string const &);
 
-cclong extractLastNumber(mg_connection* conn);
+cclong cc_extract_uri_num(mg_connection* conn);
 
-void cleanString(std::string& str);
+void cc_clean_string(std::string& str);
 
-char* nowNow();
-void Fatal(const char *zMsg);
+std::string cc_random_chars(int len);
+std::string cc_random_username();
+
+std::string cc_valid_image_ext(std::string name);
+
+void database_fatal(const char *zMsg);
 void logLog(const char* msg, ...);
-size_t szBuilder(char* buf, size_t buf_size, ...);
+
+void cc_serve_image_file(mg_connection* conn);
+bool is_admin(mg_connection* conn);
+
+void cc_write_binary(const char* filename, const char* data, unsigned len);
+
+const char * cc_get_client_ip(mg_connection* conn);
+
+std::string cc_timestamp_to_time(time_t ts);
+int cc_timestamp_diff_day(time_t t1, time_t t2);
 
 #endif

@@ -32,7 +32,36 @@
         <!--[endif]-->
 
         <div class="reply-header">
-
+            <!--[if show_admin]-->
+                <ul class="container">
+                    <li class="dropdown">
+                        [ <a href="javascript:void(0)" data-toggle="dropdown">管理</a> ]&nbsp;
+                        <ul class="dropdown-menu">
+                            <li class="splitter">No.{{THREAD_NO}}</li>
+                            <li><a href="/admin#state:{{THREAD_STATE}}:{{THREAD_NO}}">编辑状态</a></li>
+                            <li class="splitter">{{THREAD_IP}}</li>
+                            <li><a href="/admin#banip:{{THREAD_IP}}">查询IP地址、封锁</a></li>
+                            <li><a href="/list/ip/{{THREAD_IP}}">该IP发言记录</a></li>
+                            <li class="splitter">{{THREAD_POSTER}}</li>
+                            <li><a href="/admin#banid:{{THREAD_POSTER}}">封锁{{THREAD_POSTER}}</a></li>
+                            <li><a href="/list/{{THREAD_POSTER}}">查看{{THREAD_POSTER}}的发言</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            <!--[endif]-->
+            <!--[if !show_admin]-->
+            <!--[if is_sameone]-->
+                <ul class="container">
+                    <li class="dropdown">
+                        [ <a href="javascript:void(0)" data-toggle="dropdown">管理</a> ]&nbsp;
+                        <ul class="dropdown-menu">
+                            <li class="splitter">No.{{THREAD_NO}}</li>
+                            <li><a href="/del/{{THREAD_NO}}">自主删除</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            <!--[endif]-->
+            <!--[endif]-->
             <!--[if show_reply]-->
             <a href="javascript:qref({{THREAD_NO}})">No.{{THREAD_NO}}</a>&nbsp;
             <!--[endif]--><!--[if !show_reply]-->
@@ -53,7 +82,7 @@
                     <!--[if THREAD_POST_DATE=2]-->前天<!--[endif]-->
                 <!--[endif]-->
                 <!--[if !show_easy_date]-->{{THREAD_POST_DATE}}<!--[endif]-->
-                &nbsp;{{THREAD_POST_TIME}}
+                &nbsp;{{THREAD_POST_TIME}}   
             </span>&nbsp;
 
             <!--[if show_reply]-->
@@ -63,16 +92,12 @@
             </a> ]
             <!--[endif]-->
 
-            <!--[if show_admin]-->
-            &nbsp;
-            <span id='admin-{{THREAD_NO}}'>
-                <a class='wp-btn' onclick='javascript:admc({{THREAD_NO}})'>{{THREAD_IP}}</a>
-            </span>
-            <!--[endif]-->
         </div>
         <div class="quote">
             {{THREAD_CONTENT}}
         </div>
+
+        
 
         <!--[if sage]--><red><b>&#128078;&nbsp;该串已被SAGE</b></red><br/><!--[endif]-->
         <!--[if lock]--><red><b>&#128274;&nbsp;该串已被锁定</b></red><br/><!--[endif]-->
