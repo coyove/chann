@@ -5,6 +5,7 @@
 #define TIME_FORMAT	"%Y-%m-%d"
 
 #define STRING_UNKNOWN_ERROR		"未知错误"
+#define STRING_MORE 				"内容被截取"
 #define STRING_SUBJECT 				"标题"
 #define STRING_OPTIONS 				"附加选项"
 #define STRING_EMOJI 				"颜文字"

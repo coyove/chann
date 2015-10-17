@@ -4,6 +4,22 @@
 
 <div class='admin-panel'>
     <table style="margin:auto">
+    <tr><td>系統状态</td><td colspan="2">
+        <div style="text-align:left">Memory: {{MEMORY_USAGE}} kb, Uptime: {{RUNNING_TIME}} hours</div>
+    </td></tr>
+
+    <tr><td>修改串状态</td><td colspan=2>
+        <div class=admin-warning-panel style="min-width:300px;max-width:300px;width:300px">
+            <div class='alert-box alert-box-inverse' style="margin-bottom:0.5em;margin-top:0;">请小心执行</div>
+            <canvas id="myCanvas" width="300" height="150"></canvas>
+            <div style="text-align:center; margin-bottom: 6px; line-height:1em">
+                串号No.&nbsp;<input type="text" name="new-state" value="" id="thread-no" style="width:60px"/>&nbsp;
+                <button onclick="setState()">设置状态</button>
+            </div>
+        </div>
+            <input type="text" value="" id="new-state-value" style="display:none"/>
+    </td></tr>
+
     <tr><td>解封IP</td>
         <td><span id="display-ip-ban-list"></span><div style="display:none" id="ip-ban-list">{{IP_BAN_LIST}}</div></td>
         <td><button onclick="postData('ban', $('#select-ip-ban-list').val(), 'ip')">解封</button></td>
@@ -20,31 +36,14 @@
             <option value='id'>ID</option>
         </select>&nbsp;
         <input id="text-ban" type="text" value=""/>
+        &nbsp;<button onclick="findIP()">?</button>
         </td>
         <td><button onclick="postData('ban', $('#text-ban').val(), $('#selec-ban-type').val())">封锁</button></td>
     </tr>
 
-    <tr><td>搜索</td>
-        <td style="line-height:2em">
-            内容: <input id="text-search" type="text" value=""/><br>
-            限制: <input id="text-search-limit" type="text" value="100"/>
-        </td>
-        <td><button onclick="postData('search', $('#text-search').val(), $('#text-search-limit').val())">搜索</button></td>
-    </tr>
-
-    <tr><td colspan="3" id="search-result" style="display:none;text-align:left"></td></tr> 
-
-    <tr><td>修改串状态</td><td colspan=2>
-        <div class=admin-warning-panel style="min-width:300px;max-width:300px;width:300px">
-            <div class='alert-box alert-box-inverse' style="margin-bottom:0.5em;margin-top:0;">请小心执行</div>
-            <canvas id="myCanvas" width="300" height="150"></canvas>
-            <div style="text-align:center; margin-bottom: 6px; line-height:1em">
-                No.&nbsp;<input type="text" name="new-state" value="" id="thread-no" style="width:60px"/>&nbsp;
-                <button onclick="setState()">设置状态</button>
-            </div>
-        </div>
-            <input type="text" value="" id="new-state-value" style="display:none"/>
-    </td></tr>
+    <tr><td colspan="3" id="ip-result" style="display:none">
+        <iframe src="" id='ip-loc-display' style="width: 100%;border: 1px solid #ccc;height: 300px;"></iframe>
+    </td></tr> 
 
     <tr><td>删除IP/ID的所有发言</td><td colspan=2>
         <div class=admin-warning-panel style="min-width:300px;max-width:300px;width:300px">
@@ -95,6 +94,15 @@
         <td><button onclick="postData('acl', $('#select-acl').val())">确定</button></td>
     </tr>
 
+    <tr><td>搜索</td>
+        <td style="line-height:2em">
+            内容: <input id="text-search" type="text" value=""/><br>
+            限制: <input id="text-search-limit" type="text" value="100"/>
+        </td>
+        <td><button onclick="postData('search', $('#text-search').val(), $('#text-search-limit').val())">搜索</button></td>
+    </tr>
+    <tr><td colspan="3" id="search-result" style="display:none;text-align:left"></td></tr> 
+
     <tr><td>最大可浏览页面数</td>
         <td><input type="text" id="max-page-viewable" value="{{MAX_PAGES_VIEWABLE}}"/></td>
         <td><button onclick="postData('max-page-viewable', $('#max-page-viewable').val())">确定</button></td>
@@ -140,6 +148,12 @@
             alert('请输入串号');
         }
     }
+
+    function findIP(){
+        $('#ip-result').show();
+        $('#ip-loc-display').attr('src', 'https://ipinfo.io/'+$('#text-ban').val());
+    }
+
     function postData(action, param1, param2){
         var _d = "action_name=" + action;
         if(param1) _d += "&action_1=" + param1;
@@ -162,8 +176,9 @@
                     $("#search-result").html(html.join(''));
                 }else if(msg == "quitted")
                     location.reload();
-                else
+                else{
                     alert(msg);
+                }
             }
         });
     }

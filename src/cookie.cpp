@@ -9,7 +9,15 @@ extern FILE* log_file;
 
 using namespace std;
 
-void set_cookie(mg_connection *conn, const std::string c){
+string cck_extract_ssid(mg_connection* conn){
+	char ssid[128]; 
+    mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
+    string ret(ssid);
+
+    return ret;
+}
+
+void cck_send_ssid(mg_connection *conn, const std::string c){
 	char expire[100];
 	time_t t = time(NULL) + 60 * 60 * 24 * 30;
 	strftime(expire, sizeof(expire), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
@@ -23,16 +31,16 @@ void set_cookie(mg_connection *conn, const std::string c){
 		c.c_str(), expire, 60 * 60 * 24 * 30);
 }
 
-char* generateSSID(const char *user_name) {
+char* to_ssid(const char *user_name) {
 	char *hash = new char[33];
 	mg_md5(hash, user_name, ":", md5Salt, NULL);
 
 	return hash;
 }
 
-string to_ssid(const char* username){
+string cck_create_ssid(const char* username){
 	char newssid[33];
-	strcpy(newssid, generateSSID(username));
+	strcpy(newssid, to_ssid(username));
 	char finalssid[64];// = new char[64];
 
 	int len = sprintf(finalssid, "%s|%s", username, newssid);
@@ -43,9 +51,9 @@ string to_ssid(const char* username){
 	return ret;
 }
 
-string to_ssid(const string username){
+string cck_create_ssid(const string username){
 	char newssid[33];
-	strcpy(newssid, generateSSID(username.c_str()));
+	strcpy(newssid, to_ssid(username.c_str()));
 	char finalssid[64];// = new char[64];
 
 	int len = sprintf(finalssid, "%s|%s", username.c_str(), newssid);
@@ -57,7 +65,7 @@ string to_ssid(const string username){
 }
 
 
-void destoryCookie(mg_connection *conn){
+void cck_destory_ssid(mg_connection *conn){
 	mg_printf(conn,
 		"HTTP/1.1 200 OK\r\n"
 		"Content-type: text/html\r\n"
@@ -65,50 +73,19 @@ void destoryCookie(mg_connection *conn){
 		"Content-Length: 0\r\n");
 }
 
-string random_9chars(){
-	if (stopNewcookie) return NULL;
+string cck_verify_ssid(mg_connection* conn){
+	string ssid = cck_extract_ssid(conn);
 
-	char username[10];// = new char(10);
-	unqlite_util_random_string(pDb, username, 9);
-	username[9] = 0;
-
-	string ret(username);
-
-	return ret;
+	return cck_verify_ssid(ssid);
 }
 
-string verify_cookie(mg_connection* conn){
-	// char ssid[128];
-	string ssid = extract_ssid(conn);
-	string username = "";
-	// char *username = new char[10];
-	// mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
-	vector<string> zztmp = split(ssid, string("|"));
+string cck_verify_ssid(string ssid){
+	string username;
+	vector<string> zztmp = cc_split(ssid, string("|"));
 	if (zztmp.size() != 2) return username;
 
 	username = zztmp[0];
-
-	string _ssid = to_ssid(username.c_str());
-	// strcpy(testssid, generateSSID(username));
+	string _ssid = cck_create_ssid(username);
 
 	return (_ssid == ssid) ? username : "";
-	// if (strcmp(testssid, zztmp[1].c_str()) == 0)
-	// 	return username;
-	// else
-	// 	return NULL;
-}
-
-char* verifyCookieStr(char* szSSID){
-	char *username = new char[10];
-	vector<string> zztmp = split(string(szSSID), string("|"));
-	if (zztmp.size() != 2) return NULL;
-
-	strncpy(username, zztmp[0].c_str(), 10);
-	char testssid[33];
-	strcpy(testssid, generateSSID(username));
-
-	if (strcmp(testssid, zztmp[1].c_str()) == 0)
-		return username;
-	else
-		return NULL;
 }
