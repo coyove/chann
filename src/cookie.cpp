@@ -31,19 +31,25 @@ void cck_send_ssid(mg_connection *conn, const std::string c){
 		c.c_str(), expire, 60 * 60 * 24 * 30);
 }
 
-char* to_ssid(const char *user_name) {
+string __generate_appender(const char *username) {
 	char *hash = new char[33];
-	mg_md5(hash, user_name, ":", md5Salt, NULL);
+	mg_md5(hash, username, ":", md5Salt, NULL);
 
-	return hash;
+	string ret(hash);
+	delete [] hash;
+
+	return ret;
 }
 
 string cck_create_ssid(const char* username){
-	char newssid[33];
-	strcpy(newssid, to_ssid(username));
+	// char newssid[33];
+	// strcpy(newssid, to_ssid(username));
+
+	string appender = __generate_appender(username);
+
 	char finalssid[64];// = new char[64];
 
-	int len = sprintf(finalssid, "%s|%s", username, newssid);
+	int len = sprintf(finalssid, "%s|%s", username, appender.c_str());
 	finalssid[len] = 0;
 
 	std::string ret(finalssid);
@@ -52,16 +58,7 @@ string cck_create_ssid(const char* username){
 }
 
 string cck_create_ssid(const string username){
-	char newssid[33];
-	strcpy(newssid, to_ssid(username.c_str()));
-	char finalssid[64];// = new char[64];
-
-	int len = sprintf(finalssid, "%s|%s", username.c_str(), newssid);
-	finalssid[len] = 0;
-
-	std::string ret(finalssid);
-
-	return ret;
+	return cck_create_ssid(username.c_str());
 }
 
 

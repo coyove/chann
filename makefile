@@ -3,12 +3,12 @@ LIBS=-pthread
 CXX11_FLAGS=-std=c++11 -lstdc++
 WARN_FLAGS=-Wno-write-strings -Wno-literal-suffix
 
-VERSION=`date +'%Y%m%d%H%M%S'`
+VERSION=`date +'%y%m%d%H%M%S'`
 
 VPATH=./lib/unqlite/:./lib/mongoose/:./src/
 
 cchan: main.o unqlite.o mongoose.o helper.o cookie.o general.o
-	$(CXX) $(WARN_FLAGS) $(LIBS) $(CXX11_FLAGS) *.o -o cchan -O2
+	$(CXX) $(WARN_FLAGS) $(LIBS) $(CXX11_FLAGS) *.o -o cchan -O3
 
 	@echo Finish Building $(VERSION)
 
@@ -24,6 +24,11 @@ clean:
 	rm -R *.o
 
 test:
-	./cchan --title "TEST SITE" --admin-spell 111 --tpp 10 --database db/test2.db --port 13739 --salt zhang --stop-ipcheck
+	./cchan --title "TEST SITE" --admin-spell 111 --tpp 10 --database db/test2.db --port 13739 --salt zhang --page-shown 2
+
+valgrind: main.o unqlite.o mongoose.o helper.o cookie.o general.o
+	$(CXX) $(WARN_FLAGS) $(LIBS) $(CXX11_FLAGS) *.o -o cchan_v -O0 -g
+
+	@echo Finish Building $(VERSION)
 
 

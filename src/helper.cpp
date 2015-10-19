@@ -32,7 +32,7 @@ string cc_valid_image_ext(string name){
 }
 
 string cc_random_chars(int len){
-	char *username = new char(len + 1);
+	char *username = new char[len + 1];
 	unqlite_util_random_string(pDb, username, len);
 	username[len] = 0;
 
