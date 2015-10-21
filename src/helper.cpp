@@ -1,11 +1,113 @@
 #include "helper.h"
+// #include "cookie.h"
+#include "config.h"
 
 using namespace std;
 
 extern unqlite* pDb;
 extern FILE* log_file;
 extern string admin_cookie;
-extern bool stopNewcookie;
+// extern bool stopNewcookie;
+// extern char md5Salt[64];
+
+bool is_admin(mg_connection* conn){
+    return (cck_extract_ssid(conn) == admin_cookie);
+}
+
+string cck_extract_ssid(mg_connection* conn){
+	char ssid[128]; 
+    mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
+    string ret(ssid);
+
+    return ret;
+}
+
+void cck_send_ssid(mg_connection *conn, const std::string c){
+	char expire[100];
+	time_t t = time(NULL) + 60 * 60 * 24 * 30;
+	strftime(expire, sizeof(expire), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
+
+	mg_printf(conn,
+		"HTTP/1.1 200 OK\r\n"
+		"Set-Cookie: ssid=%s; expires=%s; max-age=%d; path=/; http-only; HttpOnly;\r\n"
+		"Content-type: text/html\r\n"
+		"X-UA-Compatible: IE=edge\r\n"
+		"Content-Length: 0\r\n",
+		c.c_str(), expire, 60 * 60 * 24 * 30);
+}
+
+void cck_send_admin_ssid(mg_connection *conn, const std::string ssid){
+	ConfigManager c;
+	char expire[100];
+	time_t t = time(NULL) + 60 * c.global().get<int>("security::admin::expire_time");
+	strftime(expire, sizeof(expire), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
+
+	mg_printf(conn,
+		"HTTP/1.1 200 OK\r\n"
+		"Set-Cookie: ssid=%s; expires=%s; max-age=%d; path=/; http-only; HttpOnly;\r\n"
+		"Content-type: text/html\r\n"
+		"X-UA-Compatible: IE=edge\r\n"
+		"Content-Length: 0\r\n",
+		ssid.c_str(), expire, 60 * 60 * 24 * 30);
+}
+
+string __generate_appender(const char *username) {
+	char *hash = new char[33];
+	ConfigManager c;
+	mg_md5(hash, username, ":", c.global().get("security::salt").c_str(), NULL);
+	// mg_md5(hash, username, ":", md5Salt, NULL);
+
+	string ret(hash);
+	delete [] hash;
+
+	return ret;
+}
+
+string cck_create_ssid(const char* username){
+	// char newssid[33];
+	// strcpy(newssid, to_ssid(username));
+
+	string appender = __generate_appender(username);
+
+	char finalssid[64];// = new char[64];
+
+	int len = sprintf(finalssid, "%s|%s", username, appender.c_str());
+	finalssid[len] = 0;
+
+	std::string ret(finalssid);
+
+	return ret;
+}
+
+string cck_create_ssid(const string username){
+	return cck_create_ssid(username.c_str());
+}
+
+
+void cck_destory_ssid(mg_connection *conn){
+	mg_printf(conn,
+		"HTTP/1.1 200 OK\r\n"
+		"Content-type: text/html\r\n"
+		"Set-Cookie: ssid=\"(none)\"; expires=\"Sat, 31 Jul 1993 00:00:00 GMT\"; path=/; http-only; HttpOnly;\r\n"
+		"Content-Length: 0\r\n");
+}
+
+string cck_verify_ssid(mg_connection* conn){
+	string ssid = cck_extract_ssid(conn);
+
+	return cck_verify_ssid(ssid);
+}
+
+string cck_verify_ssid(string ssid){
+	string username;
+	vector<string> zztmp = cc_split(ssid, string("|"));
+	if (zztmp.size() != 2) return username;
+
+	username = zztmp[0];
+	string _ssid = cck_create_ssid(username);
+
+	return (_ssid == ssid) ? username : "";
+}
 
 const char * cc_get_client_ip(mg_connection* conn){
     const char * xff = mg_get_header(conn, "X-Forwarded-For");
@@ -44,7 +146,7 @@ string cc_random_chars(int len){
 }
 
 string cc_random_username(){
-	if (stopNewcookie) return "";
+
 	return cc_random_chars(9);
 }
 
@@ -191,10 +293,6 @@ void cc_clean_string(string& str){
 	str = cc_replace(str, string(">"), string("&gt;"));
 }
 
-bool is_admin(mg_connection* conn){
-    return (cck_extract_ssid(conn) == admin_cookie);
-}
-
 void cc_serve_image_file(mg_connection* conn){
 	const char *ims = mg_get_header(conn, "If-Modified-Since");
     
@@ -224,18 +322,23 @@ void cc_serve_image_file(mg_connection* conn){
     char buf[1024];
     int n;
 
-    // char expire[100];
-    // time_t t = time(NULL) + 60 * 60 * 24 * 30;
-    // strftime(expire, sizeof(expire), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
+    ConfigManager c;
+
+    char expire[100];
+    struct tm exp;
+    time_t t = time(NULL) + 60 * 60 * 24 * c.global().get<int>("image::expire");
+    gmtime_r(&t, &exp);
+    strftime(expire, sizeof(expire), "%a, %d %b %Y %H:%M:%S GMT", &exp);
 
     if (stat(path.c_str(), &st) == 0 && (fp = fopen(path.c_str(), "rb")) != NULL) {
         mg_printf(conn, "HTTP/1.1 200 OK\r\n"
                         "Content-Type: %s\r\n"
                         "Last-Modified: Sat, 31 Jul 1993 00:00:00 GMT\r\n"
-                        "Expires: Tue, 31 Jul 2035 00:00:00 GMT\r\n"
+                        // "Expires: Tue, 31 Jul 2035 00:00:00 GMT\r\n"
+                        "Expires: %s\r\n"
                         // "Cache-Control: must-revalidate\r\n"
                         "Cache-Control: Public\r\n"
-                        "Content-Length: %lu\r\n\r\n", ctype.c_str(), (unsigned cclong)st.st_size);
+                        "Content-Length: %lu\r\n\r\n", ctype.c_str(), expire, (unsigned cclong)st.st_size);
         while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
             mg_write(conn, buf, n);
         }
@@ -244,4 +347,18 @@ void cc_serve_image_file(mg_connection* conn){
     }else{
         mg_printf(conn, "HTTP/1.1 404 Not Found\r\nContent-Type: image/jpeg\r\nContent-Length: 0\r\n\r\n");
     }   //image
+}
+
+
+void cc_load_file_to_set(const string& p, unordered_set<string>& s){
+	ifstream f(p);
+    string line;
+    while (f >> line) if(line != "") s.insert(line);
+    f.close();
+}
+
+void cc_store_set_to_file(const string& p, unordered_set<string>& s){
+	ofstream f(p);
+    for(auto i = s.begin(); i != s.end(); ++i) f << *i << '\n';
+    f.close();
 }

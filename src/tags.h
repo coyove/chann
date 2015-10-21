@@ -253,6 +253,12 @@ public:
 		return build(i_vars, i_stats, i_loops);
 	}
 
+	string build_destory() {
+		string ret = build(i_vars, i_stats, i_loops);
+		delete this;
+		return ret;
+	}
+
 	static string trim(const string& str)
 	{
 		string::size_type pos = str.find_first_not_of(' ');

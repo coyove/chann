@@ -1,6 +1,4 @@
-﻿//unsafe
-
-#include <stdlib.h>
+﻿#include <stdlib.h>
 #include <stdio.h>
 #include <string>
 #include <cstring>
@@ -19,36 +17,32 @@ extern "C" {
 #include "../lib/mongoose/mongoose.h"
 }
 
-#include "lang.h"
+#include "general.h"
+
+#include "helper.h"
+#include "config.h"
 #include "tags.h"
 
-#if defined(_WIN32)
-#include <Windows.h>
-#include <Psapi.h>
-#endif
-
-#include "general.h"
-#include "helper.h"
-#include "cookie.h"
-
 using namespace std;
+
+ConfigManager configs;
 
 unqlite *pDb;
 time_t  gStartupTime;               //server's startup time
 string  admin_password;              // * administrator's password
 string  admin_cookie;
-string  site_title;              //site's title
-string  ban_list_file;//file to store ip ban list
-char    md5Salt[64]     = "coyove"; // * MD5 salt
-string  thumb_prefix;
-int     threads_per_page    = 5;        //threads per page to show
-int     cooldown_time       = 20;       //cooldown time
-int     max_image_size      = 2;        //megabytes
-int     max_page_viewable   = 0;
-int     max_replies         = 1000;
-bool    stopNewcookie       = false;    //stop delivering new cookies
-bool    stop_check_ip       = false;    //stop checking ip
-bool    archiveMode         = false;
+// string  site_title;              //site's title
+// string  ban_list_file;//file to store ip ban list
+// char    md5Salt[64]     = "coyove"; // * MD5 salt
+// string  thumb_prefix;
+// int     threads_per_page    = 5;        //threads per page to show
+// int     cooldown_time       = 20;       //cooldown time
+// int     max_image_size      = 2;        //megabytes
+// int     max_page_viewable   = 0;
+// int     max_replies         = 1000;
+// bool    stopNewcookie       = false;    //stop delivering new cookies
+// bool    stop_check_ip       = false;    //stop checking ip
+// bool    archiveMode         = false;
 FILE*   log_file;                   //log file
 
 unordered_set<string>   IDBanList;      //cookie ban list
@@ -60,12 +54,7 @@ struct mg_server *server;
 
 TemplateManager templates;
 
-#define TEST_ARG(b1, b2) (strcmp(argv[i], b1) == 0 || strcmp(argv[i], b2) == 0)
-#define SEND_IS_REPLY           1
-#define SEND_SHOW_REPLY_LINK    2
-#define SEND_CUT_LONG_COMMENT   4
-#define SEND_CUT_IMAGE          8
-#define SEND_CUT_REPLY_COUNT    16
+#include "./views/single.h"
 
 static const unsigned long long BUILD_DATE = __BUILD_DATE;
 static int s_signal_received = 0;
@@ -79,14 +68,13 @@ void info_page(mg_connection* conn, const char* msg, ...){
     vsprintf(tmpbuf, msg, argptr);
     va_end(argptr);
 
-    templates.invoke("info_page") \
-        .var("CONTENT", string(tmpbuf)).toggle("info_page").pipe_to(conn).destory();
-
+    templates.invoke("info_page").var("CONTENT", string(tmpbuf)).toggle("info_page").pipe_to(conn).destory();
     templates.invoke("site_footer").var("TIME", 0).pipe_to(conn).destory();
 }
 
 bool checkIP(mg_connection* conn, bool verbose = false){
-    if(stop_check_ip) return true;
+    // if(stop_check_ip) return true;
+    if(!configs.global().get<bool>("security::access_control")) return true;
 
     time_t rawtime;
     time(&rawtime);
@@ -94,18 +82,19 @@ bool checkIP(mg_connection* conn, bool verbose = false){
     string sip(cip);
     time_t lasttime = IPAccessList[sip];
     
-    if(strstr(conn->uri, admin_password.c_str())) return true;
+    // if(strstr(conn->uri, admin_password.c_str())) return true;
     
     if(is_admin(conn)) return true;
 
     if(IPBanList.find(sip) != IPBanList.end()) {
-        info_page(conn, STRING_YOUR_IP_IS_BANNED);
+        // info_page(conn, STRING_YOUR_IP_IS_BANNED);
+        info_page(conn, templates.invoke("misc").toggle("ip_is_banned").build_destory().c_str());
         logLog("Banned IP %s trying to access", cip);
         return false; //banned
     }
 
-    if( abs(lasttime - rawtime) < cooldown_time && lasttime != 0){
-        info_page(conn, STRING_COOLDOWN_TIME, cip);
+    if( abs(lasttime - rawtime) < configs.global().get<int>("user::cooldown") && lasttime != 0){
+        info_page(conn, templates.invoke("misc").toggle("rapid_accessing").var("IP", cip).build_destory().c_str());
         if(verbose) logLog("%s is rapidly accessing", cip);
         return false;
     }
@@ -113,91 +102,95 @@ bool checkIP(mg_connection* conn, bool verbose = false){
     return true;
 }
 
-void send_single_thread(mg_connection* conn, struct Thread* r, char display_state, bool admin_view = false, 
-    const char* iid = "",
-    const char* uid = ""){
-    time_t now = time(NULL);
+// void views::each_thread(mg_connection* conn, struct Thread* r, char display_state, bool admin_view = false, 
+//     const char* iid = "",
+//     const char* uid = ""){
+//     time_t now = time(NULL);
 
-    string thread_post_time = cc_timestamp_to_time(r->date);
-    int diff_day = cc_timestamp_diff_day(now, r->date);
+//     string thread_post_time = cc_timestamp_to_time(r->date);
+//     int diff_day = cc_timestamp_diff_day(now, r->date);
 
-    char* content = readString(pDb, r->content);
-    string thread_content(content);
-    delete [] content;
+//     char* content = readString(pDb, r->content);
+//     string thread_content(content);
+//     delete [] content;
 
-    if((display_state & SEND_CUT_LONG_COMMENT) && thread_content.size() > 1024) 
-        thread_content = thread_content.substr(0, 1024) + "<font color='red'><b>&#128065;" + STRING_MORE + "</b></font>";
+//     if((display_state & SEND_CUT_LONG_COMMENT) && thread_content.size() > 1024) 
+//         thread_content = thread_content.substr(0, 1024) + templates.invoke("misc").toggle("more_contents").build_destory();
+//         //+ "<font color='red'><b>&#128065;" + STRING_MORE + "</b></font>";
 
-    HTMLTemplate *ht = templates.invoke_pointer("single_thread");
+//     HTMLTemplate *ht = templates.invoke_pointer("single_thread");
 
-    map<string, bool> stats;
-    map<string, string> vars;
+//     map<string, bool> stats;
+//     map<string, string> vars;
 
-    stats["reply"]                      = display_state & SEND_IS_REPLY;
-    stats["show_reply"]                 = display_state & SEND_SHOW_REPLY_LINK;
-    stats["archive"]                    = archiveMode;
-    stats["normal_display"]             = r->state & NORMAL_DISPLAY || admin_view;
-    stats["thread_poster_is_admin"]     = (strcmp(r->ssid, "Admin") == 0);
-    stats["thread_poster_is_sameone"]   = (strcmp(r->ssid, iid) == 0);
-    stats["is_sameone"]                 = (strcmp(r->ssid, uid) == 0);
-    stats["sage"]                       = (r->state & SAGE_THREAD && !stats["reply"]);
-    stats["lock"]                       = (r->state & LOCKED_THREAD);
-    stats["delete"]                     = !(r->state & NORMAL_DISPLAY);
-    stats["show_admin"]                 = admin_view;
-    if (strlen(r->imgSrc) >= 4){
-        string fname(r->imgSrc);
-        vars["THREAD_IMAGE"]            = fname;
+//     stats["reply"]                      = display_state & SEND_IS_REPLY;
+//     stats["show_reply"]                 = display_state & SEND_SHOW_REPLY_LINK;
+//     stats["archive"]                    = configs.global().get<bool>("archive");
+//     stats["normal_display"]             = r->state & NORMAL_DISPLAY || admin_view;
+//     stats["thread_poster_is_admin"]     = (strcmp(r->ssid, "Admin") == 0);
+//     stats["thread_poster_is_sameone"]   = (strcmp(r->ssid, iid) == 0);
+//     stats["is_sameone"]                 = (strcmp(r->ssid, uid) == 0);
+//     stats["sage"]                       = (r->state & SAGE_THREAD && !stats["reply"]);
+//     stats["lock"]                       = (r->state & LOCKED_THREAD);
+//     stats["delete"]                     = !(r->state & NORMAL_DISPLAY);
+//     stats["show_admin"]                 = admin_view;
+//     if (strlen(r->imgSrc) >= 4){
+//         string fname(r->imgSrc);
+//         vars["THREAD_IMAGE"]            = fname;
 
-        if (!cc_valid_image_ext(fname).empty()){
-            stats["image_attached"]     = true;
-            if(display_state & SEND_CUT_IMAGE){
-                struct stat st;
-                stat(("images/" + fname).c_str(), &st);
-                stats["show_size_only"] = true;
-                vars["THREAD_IMAGE_SIZE"] = to_string((int)(st.st_size / 1024));
-            }
-            else{
-                stats["show_full_image"] = true;
-                vars["THREAD_THUMB_PREFIX"] = thumb_prefix;
-            }
-        }else{
-            stats["file_attached"]      = true;
-        }
-    }
-    if(r->childThread && !(display_state & SEND_CUT_REPLY_COUNT)){
-        struct Thread* c = readThread_(pDb, r->childThread);
-        stats["show_num_replies"]       = true;
-        vars["NUM_REPLIES"]             = to_string(c->childCount);
-        delete c;
-    }
+//         if (!cc_valid_image_ext(fname).empty()){
+//             stats["image_attached"]     = true;
+//             if(display_state & SEND_CUT_IMAGE){
+//                 struct stat st;
+//                 stat(("images/" + fname).c_str(), &st);
+//                 stats["show_size_only"] = true;
+//                 vars["THREAD_IMAGE_SIZE"] = to_string((int)(st.st_size / 1024));
+//             }
+//             else{
+//                 stats["show_full_image"] = true;
+//                 vars["THREAD_THUMB_PREFIX"] = configs.global().get("image::thumb_prefix");
+//             }
+//         }else{
+//             stats["file_attached"]      = true;
+//         }
+//     }
+//     if(r->childThread && !(display_state & SEND_CUT_REPLY_COUNT)){
+//         struct Thread* c = readThread_(pDb, r->childThread);
+//         stats["show_num_replies"]       = true;
+//         vars["NUM_REPLIES"]             = to_string(c->childCount);
+//         delete c;
+//     }
 
-    vars["THREAD_POSTER"]               = string(r->ssid);
-    vars["THREAD_NO"]                   = to_string(r->threadID);
-    vars["THREAD_CONTENT"]              = thread_content;
-    vars["THREAD_TITLE"]                = string((stats["reply"] && strcmp(r->author, STRING_UNTITLED) == 0) ? "" : r->author);
-    vars["THREAD_IP"]                   = string(r->email);
-    vars["THREAD_POST_TIME"]            = thread_post_time;
-    vars["THREAD_STATE"]                = to_string(r->state);
+//     vars["THREAD_POSTER"]               = string(r->ssid);
+//     vars["THREAD_NO"]                   = to_string(r->threadID);
+//     vars["THREAD_CONTENT"]              = thread_content;
 
-    if(diff_day >= 0 && diff_day <= 2){
-        stats["show_easy_date"]         = true;
-        vars["THREAD_POST_DATE"]        = to_string(diff_day);
-    }else{
-        char timetmp[64];
-        struct tm post_date;
-        localtime_r(&(r->date), &post_date);
+//     // stats["show_title"]					= !stats["reply"] || strcmp(r->author, STRING_UNTITLED) != 0;
+//     vars["THREAD_TITLE"]                = string(r->author);
 
-        strftime(timetmp, 64, TIME_FORMAT, &post_date);
-        vars["THREAD_POST_DATE"]        = string(timetmp);
-    }
+//     vars["THREAD_IP"]                   = string(r->email);
+//     vars["THREAD_POST_TIME"]            = thread_post_time;
+//     vars["THREAD_STATE"]                = to_string(r->state);
 
-    map<string, queue<string>> loops; //nothing
+//     if(diff_day >= 0 && diff_day <= 2){
+//         stats["show_easy_date"]         = true;
+//         vars["THREAD_POST_DATE"]        = to_string(diff_day);
+//     }else{
+//         char timetmp[64];
+//         struct tm post_date;
+//         localtime_r(&(r->date), &post_date);
 
-    mg_printf_data(conn, "%s", ht->build(vars, stats, loops).c_str());
+//         strftime(timetmp, 64, "%Y-%m-%d", &post_date);
+//         vars["THREAD_POST_DATE"]        = string(timetmp);
+//     }
 
-    // if(content) delete [] content;
-    delete ht;
-}
+//     map<string, queue<string>> loops; //nothing
+
+//     mg_printf_data(conn, "%s", ht->build(vars, stats, loops).c_str());
+
+//     // if(content) delete [] content;
+//     delete ht;
+// }
 
 void showGallery(mg_connection* conn, cclong startID, cclong endID){
     struct Thread *r = readThread_(pDb, 0); // get the root thread
@@ -217,27 +210,13 @@ void showGallery(mg_connection* conn, cclong startID, cclong endID){
             c++;
             if (c >= startID && c <= endID){
                 mg_printf_data(conn, "<hr>");
-                send_single_thread(conn, r, SEND_SHOW_REPLY_LINK + SEND_CUT_LONG_COMMENT, admin_view);
+                views::each_thread(conn, r, SEND_SHOW_REPLY_LINK + SEND_CUT_LONG_COMMENT, admin_view);
             }
         }
         
         if (c == endID + 1) break;
     }
     if(r) delete r;
-    
-    // cclong current_page = endID / threads_per_page;
-    // queue<string> before, after;
-    // for (cclong i = 1; i <= (max_page_viewable == 0 || admin_view ? 10000 : max_page_viewable); ++i){
-    //     if (current_page - i < 4 && current_page - i > 0) before.push(to_string(i));
-    //     else if (i - current_page < 4 && i - current_page > 0) after.push(to_string(i));
-    //     else if (i - current_page > 4) break;
-    // }
-    
-    // templates.invoke("pager").toggle("gallery_page") \
-    //     .var("CURRENT_PAGE", current_page) \
-    //     .var("PREVIOUS_PAGE", current_page > 1 ? (current_page - 1) : 1) \
-    //     .var("NEXT_PAGE", current_page + 1) \
-    //     .loop("before_pages", before).loop("after_pages", after).pipe_to(conn).destory();
 }
 
 void showThreads(mg_connection* conn, cclong startID, cclong endID){
@@ -258,8 +237,8 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
         c++;
         if (c >= startID && c <= endID){
             mg_printf_data(conn, "<hr>");
-            //send_single_thread(conn, r, false, true, true, false, admin_view);
-            send_single_thread(conn, r, SEND_SHOW_REPLY_LINK + SEND_CUT_LONG_COMMENT + SEND_CUT_REPLY_COUNT, admin_view, "", username.c_str());
+            //views::each_thread(conn, r, false, true, true, false, admin_view);
+            views::each_thread(conn, r, SEND_SHOW_REPLY_LINK + SEND_CUT_LONG_COMMENT + SEND_CUT_REPLY_COUNT, admin_view, "", username.c_str());
             char *iid = new char[10];
             strcpy(iid, r->ssid);
 
@@ -288,12 +267,12 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
 
                 if(first_thread->childCount <= 5)
                     for (int i = vt.size() - 1; i >= 0; i--){
-                        send_single_thread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid, username.c_str());
+                        views::each_thread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid, username.c_str());
                         delete vt[i];
                     }
                 else{
                     for (int i = vt.size() - 1; i >= 0; i--){
-                        send_single_thread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid, username.c_str());
+                        views::each_thread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid, username.c_str());
                         delete vt[i];
                         if(i == vt.size() - 1){
                             templates.invoke("expand_hidden_replies") \
@@ -313,20 +292,6 @@ void showThreads(mg_connection* conn, cclong startID, cclong endID){
         if (c == endID + 1) break;
     }
     if(r) delete r;
-
-    // cclong current_page = endID / threads_per_page;
-    // queue<string> before, after;
-    // for (cclong i = 1; i <= (max_page_viewable == 0 || admin_view ? 10000 : max_page_viewable); ++i){
-    //     if (current_page - i < 4 && current_page - i > 0) before.push(to_string(i));
-    //     else if (i - current_page < 4 && i - current_page > 0) after.push(to_string(i));
-    //     else if (i - current_page > 4) break;
-    // }
-    
-    // templates.invoke("pager").toggle("timeline_page") \
-    //     .var("CURRENT_PAGE", current_page) \
-    //     .var("PREVIOUS_PAGE", current_page > 1 ? (current_page - 1) : 1) \
-    //     .var("NEXT_PAGE", current_page + 1) \
-    //     .loop("before_pages", before).loop("after_pages", after).pipe_to(conn).destory();
 }
 
 void render_single_thread(mg_connection* conn, cclong id){
@@ -334,7 +299,7 @@ void render_single_thread(mg_connection* conn, cclong id){
     cclong pid = findParent(pDb, r);
 
     if (pid == -1 && !is_admin(conn)){
-        info_page(conn, STRING_THREAD_DELETED);
+        info_page(conn, templates.invoke("misc").toggle("invalid_thread_no").build_destory().c_str());
         delete r;
         return;
     }
@@ -351,13 +316,13 @@ void render_single_thread(mg_connection* conn, cclong id){
     bool admin_view = is_admin(conn);
     string username = cck_verify_ssid(conn);
 
-    send_single_thread(conn, r, 0, admin_view);
+    views::each_thread(conn, r, 0, admin_view);
     mg_printf_data(conn, "<hr>");
 
     char iid[10];
     strcpy(iid, r->ssid);
 
-    if(!archiveMode)
+    if(!configs.global().get<bool>("archive"))
         templates.invoke("post_form") \
             .var("THREAD_NO", to_string(id)).toggle("reply_to_thread").toggle("is_admin", admin_view).pipe_to(conn).destory();
         
@@ -365,9 +330,11 @@ void render_single_thread(mg_connection* conn, cclong id){
         cclong r_childThread = r->childThread;
         delete r;
 
+        int limit = configs.global().get<int>("user::collapse_image");
+
         r = readThread_(pDb, r_childThread); // beginning of the circle
         cclong rid = r->threadID; //the ID
-        bool too_many_replies = (r->childCount > 20);
+        bool too_many_replies = (r->childCount > limit);
 
         int di = 1;
 
@@ -376,7 +343,7 @@ void render_single_thread(mg_connection* conn, cclong id){
             delete r;
             r = readThread_(pDb, n_rid);
 
-            send_single_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid, username.c_str());
+            views::each_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid, username.c_str());
 
             while (r->prevThread != n_rid){
                 di++;
@@ -385,13 +352,13 @@ void render_single_thread(mg_connection* conn, cclong id){
                 delete r;
                 r = readThread_(pDb, r_prevThread);
 
-                if(too_many_replies && (di > 20))
-                    send_single_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK + SEND_CUT_IMAGE, admin_view, iid, username.c_str());
+                if(too_many_replies && (di > limit))
+                    views::each_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK + SEND_CUT_IMAGE, admin_view, iid, username.c_str());
                 else
-                    send_single_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid, username.c_str());
+                    views::each_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid, username.c_str());
             }
         }else{
-            send_single_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid, username.c_str());
+            views::each_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid, username.c_str());
 
             while (r->nextThread != rid){
                 cclong r_nextThread = r->nextThread;
@@ -400,11 +367,11 @@ void render_single_thread(mg_connection* conn, cclong id){
                 r = readThread_(pDb, r_nextThread);
                 di++;
 
-                //send_single_thread(conn, r, true, true, false, too_many_replies && (di > 20), admin_view, iid);
-                if(too_many_replies && (di > 20))
-                    send_single_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK + SEND_CUT_IMAGE, admin_view, iid, username.c_str());
+                //views::each_thread(conn, r, true, true, false, too_many_replies && (di > 20), admin_view, iid);
+                if(too_many_replies && (di > limit))
+                    views::each_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK + SEND_CUT_IMAGE, admin_view, iid, username.c_str());
                 else
-                    send_single_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid, username.c_str());
+                    views::each_thread(conn, r, SEND_IS_REPLY + SEND_SHOW_REPLY_LINK, admin_view, iid, username.c_str());
             }
 
             if(r) delete r;
@@ -431,13 +398,13 @@ bool try_delete_thread(mg_connection* conn, cclong tid, bool admin = false){
             flag = true;
         }
         else{
-            // info_page(conn, STRING_NO_PERMISSION);
+            // info_page(conn, templates.invoke("misc").toggle("try_to_usurp").build_destory().c_str());
             flag = false;
         }
 
         if(t) delete t;
     }else
-        // info_page(conn, STRING_NO_PERMISSION);
+        // info_page(conn, templates.invoke("misc").toggle("try_to_usurp").build_destory().c_str());
         flag = false;
 
     return flag;
@@ -459,9 +426,11 @@ void linear_list_threads(mg_connection* conn,
 
         clock_t startc = clock();
 
+        int limit = configs.global().get<int>("user::linear_threads");
+
         for(cclong i = r->childCount; i > 0; i--){
             t = readThread_(pDb, i);
-            if(r->childCount - i > 500 && !admin_view) break; // only search the most recent 500 threads/replies
+            if(r->childCount - i > limit && !admin_view) break; // only search the most recent 500 threads/replies
 
             bool flag = false;
 
@@ -476,9 +445,9 @@ void linear_list_threads(mg_connection* conn,
 
             if(flag){
                 if(t->state & MAIN_THREAD)
-                    send_single_thread(conn, t, SEND_CUT_LONG_COMMENT + SEND_CUT_IMAGE, admin_view);
+                    views::each_thread(conn, t, SEND_CUT_LONG_COMMENT + SEND_CUT_IMAGE, admin_view);
                 else    
-                    send_single_thread(conn, t, SEND_IS_REPLY + SEND_CUT_LONG_COMMENT + SEND_CUT_IMAGE, admin_view);
+                    views::each_thread(conn, t, SEND_IS_REPLY + SEND_CUT_LONG_COMMENT + SEND_CUT_IMAGE, admin_view);
                 mg_printf_data(conn, "<hr>");
             }
 
@@ -504,14 +473,17 @@ void new_post(mg_connection* conn, const char* uri){
     char var_name[100], file_name[100];
 
     //first check the ip
-    if(!checkIP(conn) || archiveMode) return;
+    if(!checkIP(conn) || configs.global().get<bool>("archive")) return;
     bool admin_ctrl = is_admin(conn);
     
-    string dump_name = cc_random_chars(11);
-    cc_write_binary(("dump/" + dump_name).c_str(), conn->content, conn->content_len);
+    string dump_name;
+    if(configs.global().get<bool>("post::dump::raw")){
+        dump_name = cc_random_chars(11);
+        cc_write_binary((configs.global().get("post::dump::to") + dump_name).c_str(), conn->content, conn->content_len);
+    }
 
     if(conn->content_len <= 0){
-        info_page(conn, STRING_UNKNOWN_ERROR);
+        info_page(conn, "Error");
         return;
     }
 
@@ -532,9 +504,9 @@ void new_post(mg_connection* conn, const char* uri){
         GET_VAR("input_content", 4095, var2);
 
         if (strcmp(var_name, "input_file") == 0 && strcmp(file_name, "") != 0) {    //var4: the image attached (if has)
-            // strcpy(var4, "");
-            if (data_len > 1024 * 1024 * max_image_size){
-                info_page(conn, STRING_FILE_TOO_BIG);
+            int ilimit = configs.global().get<int>("image::max_size");
+            if (data_len > 1024 * ilimit){
+                info_page(conn, templates.invoke("misc").toggle("too_big_image").var("MAX", ilimit).build_destory().c_str());
                 return;
             }
 
@@ -549,7 +521,7 @@ void new_post(mg_connection* conn, const char* uri){
                 if (admin_ctrl) 
                     ext = original.substr(original.size() - 4);
                 else{
-                    info_page(conn, STRING_INVALID_FILE);
+                    info_page(conn, templates.invoke("misc").toggle("invalid_image").build_destory().c_str());
                     return;
                 }
             }
@@ -567,17 +539,17 @@ void new_post(mg_connection* conn, const char* uri){
     #undef GET_VAR
 
     //see if there is a SPECIAL string in the text field
-    if (strcmp(var1, "") == 0) strcpy(var1, STRING_UNTITLED);
+    if (strcmp(var1, "") == 0) strcpy(var1, "untitled");
     //user trying to sega a thread/reply
-    if (strstr(var3, "sage")) sage = true;
+    if (strstr(var3, "sage") && configs.global().get<bool>("post::allow_self::sage")) sage = true;
     //user trying to delete a thread/reply
-    if (strstr(var3, "delete")){
+    if (strstr(var3, "delete") && configs.global().get<bool>("post::allow_self::delete")){
         cclong id = cc_extract_uri_num(conn);
         // struct Thread * t = readThread_(pDb, id); //what he replies to is which he wants to delete
         if(try_delete_thread(conn, id, admin_ctrl))
-            info_page(conn, STRING_DELETE_SUCCESS, id);
+            info_page(conn, templates.invoke("misc").toggle("delete_okay").var("THREAD_NO", id).build_destory().c_str());
         else
-            info_page(conn, STRING_NO_PERMISSION);
+            info_page(conn, templates.invoke("misc").toggle("try_to_usurp").build_destory().c_str());
         return;
     }
     if (strstr(var3, "url")){
@@ -606,15 +578,16 @@ void new_post(mg_connection* conn, const char* uri){
         return;
     }
     
-    char ipath[64]; FILE *fp; struct stat st;
-    sprintf(ipath, "images/%s", var3);
+    // char ipath[64]; FILE *fp; struct stat st;
+    // sprintf(ipath, "images/%s", var3);
     
         //image or comment or both
     if (strcmp(var2, "") == 0 && !fileAttached) {
-        info_page(conn, STRING_EMPTY_COMMENT);
+        info_page(conn, templates.invoke("misc").toggle("cannot_post_null").build_destory().c_str());
         return;
     }else if (strcmp(var2, "") == 0 && fileAttached){
-        strcpy(var2, STRING_UNCOMMENTED);
+        // strcpy(var2, STRING_UNCOMMENTED);
+        strcpy(var2, templates.invoke("misc").toggle("null_comment").build_destory().c_str());
     }
     
 
@@ -629,12 +602,12 @@ void new_post(mg_connection* conn, const char* uri){
             //this id is banned, so we destory it
             cck_destory_ssid(conn);
             logLog("Banned cookie destoryed: '%s'", ssid.c_str());
-            info_page(conn, STRING_YOUR_ID_IS_BANNED);
+            info_page(conn, templates.invoke("misc").toggle("id_is_banned").build_destory().c_str());
             return;
         }
     }else{
-        if (stopNewcookie){
-            info_page(conn, STRING_STOP_COOKIE);
+        if (configs.global().get<bool>("cookie::stop")){
+            info_page(conn, templates.invoke("misc").toggle("cookie_is_stopped").build_destory().c_str());
             return;
         }
         else{
@@ -679,14 +652,15 @@ void new_post(mg_connection* conn, const char* uri){
         struct Thread* t = readThread_(pDb, id);
 
         if(t->state & TOOMANY_REPLIES){
-            info_page(conn, STRING_NO_REPLY_TO_TOOMANY, max_replies);
+            info_page(conn, templates.invoke("misc").toggle("cannot_reply_toomany") \
+                    .var("MAX", configs.global().get<int>("user::max_replies")).build_destory().c_str());
             delete t;
             return;
         }
 
         if(t->childThread){
             struct Thread* tc = readThread_(pDb, t->childThread);
-            if(tc->childCount >= max_replies - 1){
+            if(tc->childCount >= configs.global().get<int>("user::max_replies") - 1){
                 changeState(t, TOOMANY_REPLIES, true);
                 writeThread(pDb, t->threadID, t, true);
             }
@@ -694,7 +668,7 @@ void new_post(mg_connection* conn, const char* uri){
         }
 
         if(t->state & LOCKED_THREAD)
-            info_page(conn, STRING_NO_REPLY_TO_LOCKED);
+            info_page(conn, templates.invoke("misc").toggle("cannot_reply_locked").build_destory().c_str());
         else{
             newReply(pDb, id, tmpcontent.c_str(), var1, cip, username.c_str(), var4, sage);
             
@@ -725,14 +699,13 @@ void renew_cookie(mg_connection* conn){
     mg_send_header(conn, "Content-Type", "text/html");
     mg_send_header(conn, "cache-control", "private, max-age=0");
     
-    if(id == 0)
-        info_page(conn, STRING_NEW_THREAD_SUCCESS);
-    else{
-        templates.invoke("site_header").toggle("success_post_page").pipe_to(conn).destory();
-        templates.invoke("info_page").var("THREAD_NO", id).toggle("return_page").pipe_to(conn).destory();
-
-        templates.invoke("site_footer").var("TIME", 0).pipe_to(conn).destory();
-    }   //post successfully page
+    // if(id == 0)
+    //     info_page(conn, STRING_NEW_THREAD_SUCCESS);
+    // else{
+    templates.invoke("site_header").toggle("success_post_page").pipe_to(conn).destory();
+    templates.invoke("info_page").var("THREAD_NO", id).toggle("return_page").pipe_to(conn).destory();
+    templates.invoke("site_footer").var("TIME", 0).pipe_to(conn).destory();
+    // }   //post successfully page
 }
 
 void render_page(mg_connection* conn, bool indexPage, bool galleryPage = false){
@@ -742,10 +715,13 @@ void render_page(mg_connection* conn, bool indexPage, bool galleryPage = false){
     templates.invoke("site_header").var("CURRENT_PAGE", num).toggle("is_admin", is_admin(conn)) \  
         .toggle(!galleryPage ? "timeline_page" : "gallery_page").pipe_to(conn).destory();
 
-    if(!archiveMode) 
+    if(!configs.global().get<bool>("archive")) 
         templates.invoke("post_form").toggle("is_admin", is_admin(conn)).toggle("post_new_thread").pipe_to(conn).destory();
 
     clock_t startc = clock();
+    int max_page_viewable = configs.global().get<int>("user::viewable_pages");
+    int threads_per_page = configs.global().get<int>("user::threads_per_page");
+
     bool admin_view = is_admin(conn);
     int start_no = 1, end_no = threads_per_page;
 
@@ -784,7 +760,7 @@ void render_page(mg_connection* conn, bool indexPage, bool galleryPage = false){
 
 void admin_actions(struct mg_connection *conn){
     if(conn->content_len <= 0){
-        info_page(conn, STRING_UNKNOWN_ERROR);
+        info_page(conn, "Error");
         return;
     }
     char action_name[32] = {0}, action_param1[32] = {0}, action_param2[32] = {0};
@@ -795,7 +771,7 @@ void admin_actions(struct mg_connection *conn){
     mg_get_var(conn, "action_2", action_param2, sizeof(action_param2)); param2 = string(action_param2);
 
     if(action == ""){
-        info_page(conn, STRING_UNKNOWN_ERROR);
+        info_page(conn, "Error");
         return;
     }
     
@@ -803,12 +779,13 @@ void admin_actions(struct mg_connection *conn){
 
     string ret = "Action completed.";
 
-    if(HAS_KEY("login") && param1 == admin_password){
+    // if(HAS_KEY("login") && param1 == admin_password){
+    if(HAS_KEY("login") && param1 == configs.global().get("security::admin::password")){
         string ssid = cck_extract_ssid(conn);
 
         string new_name = cc_random_username();
         ssid = cck_create_ssid(new_name);
-        cck_send_ssid(conn, ssid);
+        cck_send_admin_ssid(conn, ssid);
 
         // strncpy(adminCookie, ssid, 64);
         admin_cookie = ssid;
@@ -816,22 +793,26 @@ void admin_actions(struct mg_connection *conn){
     }
 
     if(!is_admin(conn)) {
-        info_page(conn, STRING_NO_PERMISSION);
+        info_page(conn, templates.invoke("misc").toggle("try_to_usurp").build_destory().c_str());
         checkIP(conn, true);
         return;
     }
 
-    if(HAS_KEY("cookie"))               stopNewcookie = (param1 == "off");
-    if(HAS_KEY("archive"))              archiveMode = (param1 == "on");
-    if(HAS_KEY("acl"))                  stop_check_ip = (param1 == "off");
-    if(HAS_KEY("max-page-viewable"))    max_page_viewable = atol(param1.c_str());
-    if(HAS_KEY("cd-time"))              cooldown_time = atol(param1.c_str());
-    if(HAS_KEY("threads-per-page"))     threads_per_page = atol(param1.c_str());
-    if(HAS_KEY("max-replies"))          max_replies = atol(param1.c_str());
+    // if(HAS_KEY("cookie"))               stopNewcookie = (param1 == "off");
+    // if(HAS_KEY("archive"))              archiveMode = (param1 == "on");
+    // if(HAS_KEY("acl"))                  stop_check_ip = (param1 == "off");
+    // if(HAS_KEY("max-page-viewable"))    max_page_viewable = atol(param1.c_str());
+    // if(HAS_KEY("cd-time"))              cooldown_time = atol(param1.c_str());
+    // if(HAS_KEY("threads-per-page"))     threads_per_page = atol(param1.c_str());
+    // if(HAS_KEY("max-replies"))          max_replies = atol(param1.c_str());
     if(HAS_KEY("quit-admin"))           {admin_cookie = cc_random_username(); ret = "quitted";}
-    if(HAS_KEY("new-password"))         admin_password = param1;
+    // if(HAS_KEY("new-password"))         admin_password = param1;
     if(HAS_KEY("delete-thread"))        try_delete_thread(conn, atol(param1.c_str()), true);
-    if(HAS_KEY("max-image-size"))       max_image_size = atol(param1.c_str());
+    // if(HAS_KEY("max-image-size"))       max_image_size = atol(param1.c_str());
+    if(HAS_KEY("update")){
+    	// cout << param1 << "," << param2 << endl;
+    	configs.global().try_set(param1, param2);
+    }
     if(HAS_KEY("new-state") && !param1.empty()){
         int id = atol(param1.c_str());
 
@@ -856,10 +837,12 @@ void admin_actions(struct mg_connection *conn){
             ret += (" " + id + " unbanned");
         }
 
-        std::ofstream f(ban_list_file);
-        for(auto i = IPBanList.begin(); i != IPBanList.end(); ++i) f << *i << '\n';
-        for(auto j = IDBanList.begin(); j != IDBanList.end(); ++j) f << "ID:" << *j << '\n';
-        f.close();
+        // std::ofstream f(ban_list_file);
+        // for(auto i = IPBanList.begin(); i != IPBanList.end(); ++i) f << *i << '\n';
+        // for(auto j = IDBanList.begin(); j != IDBanList.end(); ++j) f << "ID:" << *j << '\n';
+        // f.close();
+        cc_store_set_to_file(configs.global().get("file::ban::ip_based"), IPBanList);
+    	cc_store_set_to_file(configs.global().get("file::ban::id_based"), IDBanList);
     }
     if(HAS_KEY("hide-image")){
         struct Thread * t = readThread_(pDb, atol(param1.c_str()));
@@ -933,8 +916,13 @@ static void response(struct mg_connection *conn) {
         renew_cookie(conn);
     else if (strstr(conn->uri, "/thread/") || strstr(conn->uri, "/daerht/")){
         cclong id = cc_extract_uri_num(conn);
-        if (id < 0)
-            info_page(conn, STRING_INVALID_ID);
+        int limit;
+        struct Thread *r = readThread_(pDb, 0); // get the root thread
+		limit = r->childCount - configs.global().get<int>("user::viewable_threads");
+        delete r;
+
+        if (id < 0 || (id < limit && limit != 0))
+            info_page(conn, templates.invoke("misc").toggle("invalid_thread_no").build_destory().c_str());
         else
             render_single_thread(conn, id);
     }
@@ -943,7 +931,7 @@ static void response(struct mg_connection *conn) {
         struct Thread *r = readThread_(pDb, id); // get the root thread
         bool admin_view = is_admin(conn);
 
-        send_single_thread(conn, r, 0, admin_view);
+        views::each_thread(conn, r, 0, admin_view);
 
         delete r;       //return a thread's plain HTML
     }
@@ -971,9 +959,9 @@ static void response(struct mg_connection *conn) {
     else if (strstr(conn->uri, "/del/")){
         int id = cc_extract_uri_num(conn);
         if(try_delete_thread(conn, id))
-            info_page(conn, STRING_DELETE_SUCCESS, id);
+            info_page(conn, templates.invoke("misc").toggle("delete_okay").var("THREAD_NO", id).build_destory().c_str());
         else
-            info_page(conn, STRING_NO_PERMISSION);
+            info_page(conn, templates.invoke("misc").toggle("try_to_usurp").build_destory().c_str());
         return;
     }
     else if (strstr(conn->uri, "/images/")){
@@ -997,19 +985,11 @@ static void response(struct mg_connection *conn) {
         templates.invoke("site_header").toggle("admin_panel_page").pipe_to(conn).destory();
         templates.invoke("admin_panel") \
             .toggle("is_admin", is_admin(conn)) \
-            .toggle("cookie", !stopNewcookie) \
-            .toggle("archive", archiveMode) \
-            .toggle("acl", !stop_check_ip) \
             .var("RUNNING_TIME", (int)((c - gStartupTime) / 3600)) \
             .var("MEMORY_USAGE", res * 4) \
-            .var("MAX_PAGES_VIEWABLE", max_page_viewable) \
             .var("IP_BAN_LIST", ip_ban_list) \
             .var("ID_BAN_LIST", id_ban_list) \
-            .var("COOLDOWN_TIME", cooldown_time) \
-            .var("MAX_IMAGE_SIZE", max_image_size) \
-            .var("THREADS_PER_PAGE", threads_per_page) \
-            .var("MAX_REPLIES", max_replies) \
-            .var("ADMIN_PASSWORD", admin_password) \
+            .var("GLOBAL_CONFIGS", configs.global().serialize_to_json()) \
             .pipe_to(conn).destory();
         templates.invoke("site_footer").var("TIME", 0).pipe_to(conn).destory();
     }
@@ -1040,7 +1020,7 @@ static void broadcastMessage(struct mg_connection *conn){
     h->postTime = rawtime;
 
     chatHistory.push_front(h);
-    while(chatHistory.size() > 20){
+    while(chatHistory.size() > configs.global().get<int>("chat::max_histories")){
         struct History *h2 = chatHistory.back();
         delete h2;
         chatHistory.pop_back();
@@ -1142,27 +1122,18 @@ static void signal_handle(int sig_num) {
 }
 
 int main(int argc, char *argv[]){
-    site_title = "";
-    string listening_port = "8080";
-    string db_path = "default.db"; 
-    log_file = stdout;
+    string conf_path = "./cchan.conf";
 
     for (int i = 0; i < argc; ++i){
-        // if(TEST_ARG("--help", "-h")){
-        //     puts(help_text);
-        //     return 0;
-        // }
-
-        if(TEST_ARG("--database", "-d")){
-            db_path = string(argv[++i]);
+        if((strcmp(argv[i], "--load") == 0 || strcmp(argv[i], "-l") == 0)){
+            conf_path = string(argv[++i]);
             continue;
-        }
-        if(TEST_ARG("--log", "-l")){
-            log_file = fopen(argv[++i], "a");
-            logLog(">>>>>>>>>>>> Log File: %s(%d) <<<<<<<<<<<<", argv[i], log_file);
-            continue;
-        }
+        }      
     }
+
+    configs.global().load(conf_path);
+    string db_path = configs.global().get("database"); 
+    log_file = stdout;
 
     int rc = unqlite_open(&pDb, db_path.c_str(), UNQLITE_OPEN_CREATE + UNQLITE_OPEN_MMAP);
     if (rc != UNQLITE_OK) database_fatal("Out of memory");
@@ -1178,56 +1149,59 @@ int main(int argc, char *argv[]){
     //generate a random admin password
     admin_password  = cc_random_chars(10);
     admin_cookie    = admin_password;
-    ban_list_file   = "ipbanlist";
-    thumb_prefix    = "/images/";
+    configs.global().set("security::admin::cookie", admin_password);
 
-    for (int i = 0; i < argc; ++i){
-        if(TEST_ARG("--set-counter",    "-C")) { writecclong(pDb, "global_counter", atoi(argv[++i]), true); }
-        if(TEST_ARG("--title",          "-t")) { site_title = string(argv[++i]); continue; }
-        if(TEST_ARG("--admin-spell",    "-a")) { admin_password = string(argv[++i]); continue; }
-        if(TEST_ARG("--port",           "-p")) { listening_port  = string(argv[++i]); continue; }
-        if(TEST_ARG("--salt",           "-m")) { strncpy(md5Salt,       argv[++i], 64); continue; }
-        if(TEST_ARG("--ban-list",       "-b")) { ban_list_file =    string(argv[++i]); continue; }
-        if(TEST_ARG("--use-thumb",      "-S")) { thumb_prefix =     string(argv[++i]); continue; }
-        if(TEST_ARG("--tpp",            "-T")) { threads_per_page = atoi(argv[++i]);     continue; }
-        if(TEST_ARG("--cd-time",        "-c")) { cooldown_time =       atoi(argv[++i]);     continue; }
-        if(TEST_ARG("--max-image-size", "-I")) { max_image_size =      atoi(argv[++i]);     continue; }
-        if(TEST_ARG("--auto-lock",      "-L")) { max_replies =      atoi(argv[++i]);     continue; }
-        if(TEST_ARG("--page-shown",     "-P")) { max_page_viewable =     atoi(argv[++i]);     continue; }
-        if(TEST_ARG("--stop-cookie",    "-s")) stopNewcookie = true;
-        if(TEST_ARG("--stop-ipcheck",   "-i")) stop_check_ip = true;
-        if(TEST_ARG("--archive",        "-Z")) archiveMode = true;
-    }
+    // ban_list_file   = "ipbanlist";
+    // thumb_prefix    = "/images/";
+
+    // for (int i = 0; i < argc; ++i){
+    //     if(TEST_ARG("--set-counter",    "-C")) { writecclong(pDb, "global_counter", atoi(argv[++i]), true); }
+    //     if(TEST_ARG("--title",          "-t")) { site_title = string(argv[++i]); continue; }
+    //     if(TEST_ARG("--admin-spell",    "-a")) { admin_password = string(argv[++i]); continue; }
+    //     if(TEST_ARG("--port",           "-p")) { listening_port  = string(argv[++i]); continue; }
+    //     if(TEST_ARG("--salt",           "-m")) { strncpy(md5Salt,       argv[++i], 64); continue; }
+    //     if(TEST_ARG("--ban-list",       "-b")) { ban_list_file =    string(argv[++i]); continue; }
+    //     if(TEST_ARG("--use-thumb",      "-S")) { thumb_prefix =     string(argv[++i]); continue; }
+    //     if(TEST_ARG("--tpp",            "-T")) { threads_per_page = atoi(argv[++i]);     continue; }
+    //     if(TEST_ARG("--cd-time",        "-c")) { cooldown_time =       atoi(argv[++i]);     continue; }
+    //     if(TEST_ARG("--max-image-size", "-I")) { max_image_size =      atoi(argv[++i]);     continue; }
+    //     if(TEST_ARG("--auto-lock",      "-L")) { max_replies =      atoi(argv[++i]);     continue; }
+    //     if(TEST_ARG("--page-shown",     "-P")) { max_page_viewable =     atoi(argv[++i]);     continue; }
+    //     if(TEST_ARG("--stop-cookie",    "-s")) stopNewcookie = true;
+    //     if(TEST_ARG("--stop-ipcheck",   "-i")) stop_check_ip = true;
+    //     if(TEST_ARG("--archive",        "-Z")) archiveMode = true;
+    // }
 
     templates.add_template("single_thread");
     templates.add_template("expand_hidden_replies");
-    templates.add_template("admin_console");
     templates.add_template("post_form");
-    templates.add_template("site_header").var("SITE_TITLE", site_title);
+    templates.add_template("site_header").var("SITE_TITLE", configs.global().get("title"));
     templates.add_template("site_footer").var("BUILD_DATE", to_string(BUILD_DATE));
     templates.add_template("site_slogan");
     templates.add_template("info_page");
     templates.add_template("admin_panel");
     templates.add_template("pager");
+    templates.add_template("misc");
     templates.add_template("single_thread_header");
 
-    std::ifstream f(ban_list_file);
-    string line;
-    while (f >> line) {
-        if(line != "") {
-            if(!line.compare(0, 3, "ID:"))
-                IDBanList.insert(line.substr(3));
-            else
-                IPBanList.insert(line);
-        }
-    }
-    f.close();
+    // std::ifstream f(ban_list_file);
+    // string line;
+    // while (f >> line) {
+    //     if(line != "") {
+    //         if(!line.compare(0, 3, "ID:"))
+    //             IDBanList.insert(line.substr(3));
+    //         else
+    //             IPBanList.insert(line);
+    //     }
+    // }
+    // f.close();
 
-    logLog("Banlist '%s' loaded with %d/%d records", ban_list_file.c_str(), IPBanList.size(), IDBanList.size());    
+    cc_load_file_to_set(configs.global().get("file::ban::ip_based"), IPBanList);
+    cc_load_file_to_set(configs.global().get("file::ban::id_based"), IDBanList);
+    logLog("Banlist loaded with %d/%d records", IPBanList.size(), IDBanList.size());    
 
     server = mg_create_server(NULL, event_handle);
-
-    mg_set_option(server, "listening_port", listening_port.c_str());
+    mg_set_option(server, "listening_port", to_string(configs.global().get<int>("listen")).c_str());
     logLog("Start listening on port %s", mg_get_option(server, "listening_port"));
 
     fflush(log_file);

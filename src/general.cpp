@@ -1,4 +1,6 @@
 #include "general.h"
+// #include "config.h"
+// #include <iostream>
 
 void changeState(struct Thread* t, char statebit, bool op){
 	char truebit = statebit;

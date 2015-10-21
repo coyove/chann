@@ -68,7 +68,20 @@
             <a href='/thread/{{THREAD_NO}}'>No.{{THREAD_NO}}</a>&nbsp;
             <!--[endif]-->
 
-            <ttt>{{THREAD_TITLE}}</ttt>&nbsp;
+            <ttt>
+                <!--[if !reply]-->
+                    <!--[if THREAD_TITLE=untitled]-->无标题<!--[endif]-->
+                    <!--[if !THREAD_TITLE=untitled]-->{{THREAD_TITLE}}<!--[endif]-->
+                <!--[endif]-->
+                <!--[if reply]-->
+                    <!--[if !THREAD_TITLE=untitled]-->
+                    <!--[if !THREAD_TITLE=无标题]-->
+                    {{THREAD_TITLE}}
+                    <!--[endif]-->
+                    <!--[endif]-->
+                <!--[endif]-->
+            </ttt>&nbsp;
+
             <span class="tmsc">
                 <ssid>
                     <!--[if thread_poster_is_admin]--><red>Admin</red><!--[endif]-->

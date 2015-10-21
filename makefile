@@ -5,18 +5,24 @@ WARN_FLAGS=-Wno-write-strings -Wno-literal-suffix
 
 VERSION=`date +'%y%m%d%H%M%S'`
 
-VPATH=./lib/unqlite/:./lib/mongoose/:./src/
+VPATH=./lib/unqlite/:./lib/mongoose/:./src/:./src/views/
 
-cchan: main.o unqlite.o mongoose.o helper.o cookie.o general.o
+cchan: main.o unqlite.o mongoose.o helper.o general.o single.o
 	$(CXX) $(WARN_FLAGS) $(LIBS) $(CXX11_FLAGS) *.o -o cchan -O3
 
 	@echo Finish Building $(VERSION)
 
-main.o: main.cpp general.h cookie.h helper.h unqlite.h mongoose.h
+main.o: main.cpp single.h config.h general.h helper.h unqlite.h mongoose.h
 	$(CXX) $(WARN_FLAGS) $(CXX11_FLAGS) -c ./src/main.cpp -D__BUILD_DATE=$(VERSION)
 
 general.o: 
 	$(CXX) $(WARN_FLAGS) $(CXX11_FLAGS) -c ./src/general.cpp
+
+helper.o:
+	$(CXX) $(WARN_FLAGS) $(CXX11_FLAGS) -c ./src/helper.cpp
+
+single.o:
+	$(CXX) $(WARN_FLAGS) $(CXX11_FLAGS) -c ./src/views/single.cpp
 
 
 .PHONY: clean
@@ -24,7 +30,7 @@ clean:
 	rm -R *.o
 
 test:
-	./cchan --title "TEST SITE" --admin-spell 111 --tpp 10 --database db/test2.db --port 13739 --salt zhang --page-shown 2
+	./cchan --load ./cchan_test.conf
 
 valgrind: main.o unqlite.o mongoose.o helper.o cookie.o general.o
 	$(CXX) $(WARN_FLAGS) $(LIBS) $(CXX11_FLAGS) *.o -o cchan_v -O0 -g

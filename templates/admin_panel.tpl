@@ -3,7 +3,7 @@
 <!--[if is_admin]-->
 
 <div class='admin-panel'>
-    <table style="margin:auto">
+    <table style="margin:auto" id="main-table">
     <tr><td>系統状态</td><td colspan="2">
         <div style="text-align:left">Memory: {{MEMORY_USAGE}} kb, Uptime: {{RUNNING_TIME}} hours</div>
     </td></tr>
@@ -59,7 +59,7 @@
         </div>
     </td></tr>
 
-    <tr><td>管理员密码</td>
+    <!-- <tr><td>管理员密码</td>
         <td><input type="text" id="new-password" value="{{ADMIN_PASSWORD}}"/></td>
         <td><button onclick="postData('new-password', $('#new-password').val())">确定</button></td>
     </tr>
@@ -92,7 +92,7 @@
             </select>
         </td>
         <td><button onclick="postData('acl', $('#select-acl').val())">确定</button></td>
-    </tr>
+    </tr> -->
 
     <tr><td>搜索</td>
         <td style="line-height:2em">
@@ -103,7 +103,7 @@
     </tr>
     <tr><td colspan="3" id="search-result" style="display:none;text-align:left"></td></tr> 
 
-    <tr><td>最大可浏览页面数</td>
+    <!-- <tr><td>最大可浏览页面数</td>
         <td><input type="text" id="max-page-viewable" value="{{MAX_PAGES_VIEWABLE}}"/></td>
         <td><button onclick="postData('max-page-viewable', $('#max-page-viewable').val())">确定</button></td>
     </tr>
@@ -123,19 +123,43 @@
         <td><button onclick="postData('cd-time', $('#cd-time').val())">确定</button></td>
     </tr>
 
-    <tr><td>图片大小上限</td>
+    <tr id="append-table"><td>图片大小上限</td>
         <td><input type="text" id="max-image-size" value="{{MAX_IMAGE_SIZE}}"/> M</td>
         <td><button onclick="postData('max-image-size', $('#max-image-size').val())">确定</button></td>
-    </tr>
-
-
+    </tr> -->
     <tr><td>退出</td>
         <td colspan=2><button onclick="postData('quit-admin');">退出管理员权限</button></td>
     </tr>
     </table>
+
+    <div id="global-configs" style="display:none">{{GLOBAL_CONFIGS}}</div>
+
 </div>
 
 <script type="text/javascript">
+var gc = JSON.parse($('#global-configs').html());
+var table = document.getElementById("main-table");
+table.insertRow().innerHTML = "<td colspan=3><hr></td>";
+
+for(var i in gc){
+    var k = i.replace("::", "--");
+    var html = "";
+    if(typeof gc[i] == "boolean"){
+        html = ("<td>" + i + "</td><td><select style='width:100%' id='" + k + "'>" +
+            "<option " + (gc[i] ? "selected=selected":"") + " value='on'>on</option>" +
+            "<option " + (gc[i] ? "":"selected=selected") + " value='off'>off</option>" +
+            "</select></td>");
+    }
+    else{
+        html = ("<tr><td>" + i + "</td><td><input type='text' id='" + k + "' value='" + gc[i] + "' style='width:100%'/></td>");
+    }
+
+    html += ("<td><button onclick=postData2('" + k + "')>确定</button></td>");
+
+    var r = table.insertRow();
+    r.innerHTML = html;
+};
+
     function setState(){
         if($('#thread-no').val()){
             if(graphBits.getDel()){
@@ -147,7 +171,7 @@
         }else{
             alert('请输入串号');
         }
-    }
+    };
 
     function findIP(){
         $('#ip-result').show();
@@ -179,6 +203,19 @@
                 else{
                     alert(msg);
                 }
+            }
+        });
+    }
+
+    function postData2(configName){
+        var _d = "action_name=update&action_1=" + configName.replace("--", "::") + "&action_2=" + $('#' + configName).val();
+
+        $.ajax({
+            type: "POST",
+            url: "/admin_action",
+            data: _d,
+            success: function(msg) {
+                    alert(msg);
             }
         });
     }
