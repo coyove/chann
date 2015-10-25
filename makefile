@@ -24,7 +24,7 @@ OBJECT:=$(patsubst ./src/%, ./build/%, $(patsubst %.cpp, %.o, $(SOURCE)))
 OBJECT+=./build/libs/unqlite.o ./build/libs/mongoose.o
 
 cchan: $(OBJECT)
-	$(CXX) $(WARN_FLAGS) $(LIBS) $(CXX11_FLAGS) $(OBJECT) -o cchan
+	$(CXX) $(WARN_FLAGS) $(LIBS) $(CXX11_FLAGS) $(OBJECT) -o chann
 
 	@echo Finish Building $(VERSION)
 
@@ -47,11 +47,6 @@ clean:
 	find ./build/ -name '*.o' -delete
 
 test:
-	./cchan --load ./cchan_test.conf
-
-valgrind: main.o unqlite.o mongoose.o helper.o cookie.o general.o
-	$(CXX) $(WARN_FLAGS) $(LIBS) $(CXX11_FLAGS) *.o -o cchan_v -O0 -g
-
-	@echo Finish Building $(VERSION)
+	./chann --load ./chann_test.conf
 
 

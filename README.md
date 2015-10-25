@@ -1,98 +1,63 @@
-[English](#cchan-anonymous-imageboard)
+#chann（酱） 匿名版
 
-#cchan 匿名版
+chann是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http://unqlite.org)的匿名版服务器。
 
-cchan是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http://unqlite.org)的匿名版服务器。
+[Demo](https://waifu.cc/)托管于Conoha，配置为单核CPU和1G内存的CentOS 7 x64，chann的开发与运营均基于CentOS 7，故以下叙述全部以此版本为准。
 
-[Demo](https://waifu.cc/)，托管于Conoha，配置：单核、1G内存、CentOS 7 x64，由于使用的是SSLS的证书，故在一些手机浏览器上会提示证书错误。
+##编译cchan
 
-编译cchan
----------
+1. 准备工作：
+`yum group install "Development Tools"`
 
-在Linux平台下编译，请使用64位系统和GCC 4.8以上的版本。
+2. chann支持Google的Recaptcha验证服务，若要使用此服务，请先配置libcurl库：
+	1. `wget https://github.com/bagder/curl/releases/download/curl-7_45_0/curl-7.45.0.tar.gz | tar xvz`
+	2. `cd curl-7.45.0.tar.gz`
+	3. `./configure && make && make install`
 
-运行`make clean && make`进行编译。
+3. `git clone git@github.com:coyove/chann.git`
 
-运行`make test`打开测试服务器，默认为监听`13739`端口，管理员密码`111`。
+4. 运行`make`进行编译。若要使用Recaptcha，运行`make CAPTCHA=1`。
 
-启动cchan
----------
-首次启动cchan时，请务必遵循以下步骤：
+5. 运行`make test`打开测试服务器，默认监听13739端口，管理员密码111。
 
-1. 使用命令`--salt XXX`设置MD5盐，设置之后每次启动cchan请使用同一个值。XXX不超过64个ASCII字符，默认为`coyove`。请至少使用16位以上的盐。
-2. 使用命令`--database XXX`设置数据库位置。
-3. 使用命令`--admin-spell XXX`设置管理员密码，默认为随机生成字符串。
-4. 使用命令`--port XXX`设置监听端口。
-5. 其他命令请参考源码。
+##启动chann
 
-将cchan添加为服务
-----------------
-以CentOS 7为例，在`/usr/lib/systemd/system/cchan.service`中添加以下内容：
+### chann.conf配置文件
+运行`cp chann_test.conf chann.conf`获得一份新的默认配置文件，具体配置在文件中有详细的描述。
+
+需要注意的是请至少设置长度大于10位的MD5盐和管理员密码。
+
+### 添加为服务
+在`/usr/lib/systemd/system/chann.service`中添加以下内容：
 
 ```
 [Unit]
-Description=CCHAN Anonymous Imageboard
+Description=CHANN Anonymous Imageboard
 
 [Service]
-ExecStart=/path/to/run-server.sh
+ExecStart=/path/to/chann
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-使用`systemctl start cchan.service`启动服务器。
+### 启动
+使用`systemctl start chann.service`启动服务器。
 
-性能
----------
-使用Webbench对站点进行测试，统一设置为持续10s的500并发连接，结果如下：
 
-目标	 		 			|pages/min
+##性能
+
+使用Webbench对站点进行本地测试，设置为访问同一目标持续10s，500个并发连接，结果如下：
+
+target 		 			|pages/min
 ------------------------|---------
-waifu.cc/h/pixmicat.php	|5000
-waifu.cc/page/1			|77000
-waifu.cc/page/9			|74000
+pixmicat|5,000
+Demo站首页|77,000
+Demo站第十页|74,000
 
-#CCHAN Anonymous Imageboard
-
-CCHAN is an anonymous imageboard based on [mongoose](https://github.com/cesanta/mongoose) and [unqlite](http://unqlite.org).
-
-[Demo](https://waifu.cc/) is hosted on Linode, CentOS 7 x64 running on a single core CPU with 1GB of RAM, the site is using a certificate issued by ssls.com and some browsers may raise SSL warnings.
-
-Compile the Server
-------------------
-
-Currently the development on Windows has been deprecated.
-
-To compile it on Linux, you need a 64bit system with GCC > 4.8.
-
-Run `make clean && make` to compile.
-
-Run `make test` to open a test server listening on 13739 and the admin's password is `111`.
-
-To compile it on mingw64, import all the codes into CLion and it should work.
-
-Start the Server
-----------------
-Follow these steps:
-
-1. `mkdir images` if not created.
-2. Use `--salt XXX` to set a MD5 salt, its value shall not be changed since then. The length of XXX is 64 at most and you should NEVER make it less than 16 characters.
-3. Use `--database XXX` to set the location of your database.
-4. Use `--admin-spell XXX` to set a admin's password, it would be a random string if you left it blank.
-5. Use `--port XXX` to set the listening port.
-6. For other commands please refer the source code.
-
-Note on i18n
----------
-CCHAN is a small server and it compiles fast, inside `./src/lang.h` is the Chinese translation, feel free to add yours and recompile it.
-
-Performance
----------
-Use WebBench for benchmarking, 500 clients & 10s:
-
-URL	 		 			|pages/min
+新版本的chann在用C++进行重构后，数据如下：
+target 		 			|pages/min
 ------------------------|---------
-waifu.cc/h/pixmicat.php	|5000
-waifu.cc/page/1			|77000
-waifu.cc/page/9			|74000
+Demo站首页|73,000
+Demo站第十页|55,000

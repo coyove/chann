@@ -2,7 +2,7 @@
         <div class='page-footer' id='page-footer'>
             <p style='color:#aaa;margin:0;float:left'>
                 <small>
-                    Proudly powered by <a href='https://github.com/coyove/cchan' target=_blank>CCHAN</a> in {{TIME}}ms
+                    Proudly powered by <a href='https://github.com/coyove/cchan' target=_blank>CHANN</a> in {{TIME}}ms
                 </small>
             </p>
             <p style='color:#aaa;margin:0;float:right'>

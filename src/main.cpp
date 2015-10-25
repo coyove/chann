@@ -353,7 +353,7 @@ static void signal_handle(int sig_num) {
 }
 
 int main(int argc, char *argv[]){
-    string conf_path = "./cchan.conf";
+    string conf_path = "./chann.conf";
     log_file = stdout;
 
     for (int i = 0; i < argc; ++i){
