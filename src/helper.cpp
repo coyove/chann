@@ -7,8 +7,6 @@ using namespace std;
 extern unqlite* pDb;
 extern FILE* log_file;
 extern string admin_cookie;
-// extern bool stopNewcookie;
-// extern char md5Salt[64];
 
 bool is_admin(mg_connection* conn){
     return (cck_extract_ssid(conn) == admin_cookie);

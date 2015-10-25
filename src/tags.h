@@ -12,6 +12,8 @@
 #include <exception>
 #include <queue>
 
+#include <dirent.h>
+
 extern "C" {
 #include "../lib/mongoose/mongoose.h"
 }
@@ -278,10 +280,44 @@ public:
 class TemplateManager{
 private:
 	map<string, HTMLTemplate> m_templates;
+	std::string lang;
 public:
+	void use_lang(std::string l){
+		lang = l;
+	}
+
+	int load_templates(){
+		DIR *pDIR;
+        struct dirent *entry;
+        int c = 0;
+        std::string root_dir = "./templates/" + lang + "/";
+
+        if(pDIR = opendir(root_dir.c_str()) ){
+            while(entry = readdir(pDIR)){
+                if( strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0 ){
+	                string filename = entry->d_name;
+
+	        		HTMLTemplate tmp;
+					tmp.load_file(root_dir + filename);
+
+	            	filename = filename.substr(0, filename.size() - 4);
+					m_templates[filename] = tmp;
+
+					c++;
+				}
+
+            }
+            closedir(pDIR);
+        }
+
+        return c;
+	}
+
 	HTMLTemplate& add_template(const string& name){
 		HTMLTemplate tmp;
-		tmp.load_file(string("templates/") + name + string(".tpl"));
+		std::string root_dir = "./templates/" + lang + "/";
+
+		tmp.load_file(root_dir + name + string(".tpl"));
 
 		m_templates[name] = tmp;
 
