@@ -142,12 +142,11 @@ namespace actions{
                 return;
             }
             //admin trying to update a thread/reply
-            if (strstr(p_options, "update") && admin_ctrl){
+            if (strstr(p_options, "update") && 
+                (admin_ctrl || configs.global().get<bool>("security::assist::" + is_assist(conn) + "::update"))){
                 int id = cc_extract_uri_num(conn);
                 struct Thread * t = unq_read_thread(pDb, id); 
-                //what admin replies to is which he wants to update
-                //note the server doesn't filter the special chars such as "<" and ">"
-                //so it's possible for admin to use HTML here
+
                 if(!strstr(p_options, "html")){
                     string up_str = cc_replace(string(p_content), string("\n"), string("<br>"));
                     unq_write_string(pDb, t->content, up_str.c_str(), true); 
@@ -155,10 +154,12 @@ namespace actions{
                     unq_write_string(pDb, t->content, p_content, true); 
 
                 views::info::render(conn, "Thread updated successfully");
-                logLog("Admin has edited No.%d", t->threadID);
+                logLog("Admin (%s) has edited No.%d", is_assist(conn).c_str(), t->threadID);
+                delete t;
+
                 return;
             }
-            
+
                 //image or comment or both
             if (strcmp(p_content, "") == 0 && !fileAttached) {
                 views::info::render(conn, templates.invoke("misc").toggle("cannot_post_null").build_destory().c_str());
@@ -194,6 +195,8 @@ namespace actions{
             }
 
             if (admin_ctrl) username = "Admin";
+            string ass = is_assist(conn);
+            if(!ass.empty()) username = ass.substr(0, 9);
 
             //replace some important things
             string tmpcontent(p_content);  cc_clean_string(tmpcontent);

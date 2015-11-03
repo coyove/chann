@@ -1,5 +1,5 @@
-#ifndef CCHAN_ROUTER_HEADER
-#define CCHAN_ROUTER_HEADER
+#ifndef CHANN_ROUTER_HEADER_INCLUDED
+#define CHANN_ROUTER_HEADER_INCLUDED
 
 #include <string>
 #include <map>

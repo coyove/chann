@@ -4,7 +4,7 @@
 	<!--[endif]-->
 
 	<!--[if !homepage]-->
-	<div style="float: left;"><a href="/thread/{{THREAD_NO}}">&#171; No.{{THREAD_NO}}</a></div>
+	<div style="float: left;"><a href="/thread/{{PARENT_NO}}">&#171; No.{{PARENT_NO}}</a></div>
 	<!--[endif]-->
 
 	<!--[if thread]-->

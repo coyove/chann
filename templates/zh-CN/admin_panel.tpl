@@ -1,12 +1,20 @@
-<script type="text/javascript" src="/assets/jquery-1.9.1.min.js"></script>
+<script type="text/javascript" src="/assets/js/jquery-1.9.1.min.js"></script>
 
 <!--[if is_admin]-->
 
 <div class='admin-panel'>
     <table style="margin:auto" id="main-table">
     <tr><td>系統状态</td><td colspan="2">
-        <div style="text-align:left">Memory: {{MEMORY_USAGE}} kb, Uptime: {{RUNNING_TIME}} hours</div>
+        <div style="text-align:left">
+            Memory: {{MEMORY_USAGE}} kb, Uptime: {{RUNNING_TIME}} hours
+        </div>
     </td></tr>
+
+    <!--[if is_assist]-->
+    <tr><td>协助身份</td><td colspan="2">
+        <div style="text-align:left">{{ASSIST_NAME}}</div>
+    </td></tr>
+    <!--[endif]-->
 
     <tr><td>修改串状态</td><td colspan=2>
         <div class=admin-warning-panel style="min-width:300px;max-width:300px;width:300px">
@@ -59,41 +67,6 @@
         </div>
     </td></tr>
 
-    <!-- <tr><td>管理员密码</td>
-        <td><input type="text" id="new-password" value="{{ADMIN_PASSWORD}}"/></td>
-        <td><button onclick="postData('new-password', $('#new-password').val())">确定</button></td>
-    </tr>
-
-    <tr><td>分发新Cookie</td>
-        <td>
-            <select id="select-cookie">
-                <option <!--[if cookie]-->selected="selected"<!--[endif]--> value="on">打开</option>
-                <option <!--[if !cookie]-->selected="selected"<!--[endif]--> value="off">关闭</option>
-            </select>
-        </td>
-        <td><button onclick="postData('cookie', $('#select-cookie').val())">确定</button></td>
-    </tr>
-
-    <tr><td>全站只读</td>
-        <td>
-            <select id="select-archive">
-                <option <!--[if archive]-->selected="selected"<!--[endif]--> value="on">打开</option>
-                <option <!--[if !archive]-->selected="selected"<!--[endif]--> value="off">关闭</option>
-            </select>
-        </td>
-        <td><button onclick="postData('archive', $('#select-archive').val())">确定</button></td>
-    </tr>
-
-    <tr><td>IP访问控制</td>
-        <td>
-            <select id="select-acl">
-                <option <!--[if acl]-->selected="selected"<!--[endif]--> value="on">打开</option>
-                <option <!--[if !acl]-->selected="selected"<!--[endif]--> value="off">关闭</option>
-            </select>
-        </td>
-        <td><button onclick="postData('acl', $('#select-acl').val())">确定</button></td>
-    </tr> -->
-
     <tr><td>搜索</td>
         <td style="line-height:2em">
             内容: <input id="text-search" type="text" value=""/><br>
@@ -103,33 +76,15 @@
     </tr>
     <tr><td colspan="3" id="search-result" style="display:none;text-align:left"></td></tr> 
 
-    <!-- <tr><td>最大可浏览页面数</td>
-        <td><input type="text" id="max-page-viewable" value="{{MAX_PAGES_VIEWABLE}}"/></td>
-        <td><button onclick="postData('max-page-viewable', $('#max-page-viewable').val())">确定</button></td>
-    </tr>
-
-    <tr><td>每页显示串数</td>
-        <td><input type="text" id="threads-per-page" value="{{THREADS_PER_PAGE}}"/></td>
-        <td><button onclick="postData('threads-per-page', $('#threads-per-page').val())">确定</button></td>
-    </tr>
-
-    <tr><td>每串最多回复数</td>
-        <td><input type="text" id="max-replies" value="{{MAX_REPLIES}}"/></td>
-        <td><button onclick="postData('max-replies', $('#max-replies').val())">确定</button></td>
-    </tr>
-
-    <tr><td>CD时间</td>
-        <td><input type="text" id="cd-time" value="{{COOLDOWN_TIME}}"/> s</td>
-        <td><button onclick="postData('cd-time', $('#cd-time').val())">确定</button></td>
-    </tr>
-
-    <tr id="append-table"><td>图片大小上限</td>
-        <td><input type="text" id="max-image-size" value="{{MAX_IMAGE_SIZE}}"/> M</td>
-        <td><button onclick="postData('max-image-size', $('#max-image-size').val())">确定</button></td>
-    </tr> -->
     <tr><td>退出</td>
-        <td colspan=2><button onclick="postData('quit-admin');">退出管理员权限</button></td>
+        <!--[if is_assist]-->
+            <td colspan=2><button onclick="postData('quit-assist');">退出协助管理员权限</button></td>
+        <!--[endif]-->
+        <!--[if !is_assist]-->
+            <td colspan=2><button onclick="postData('quit-admin');">退出管理员权限</button></td>
+        <!--[endif]-->
     </tr>
+
     </table>
 
     <div id="global-configs" style="display:none">{{GLOBAL_CONFIGS}}</div>
@@ -137,6 +92,7 @@
 </div>
 
 <script type="text/javascript">
+<!--[if !is_assist]-->
 var gc = JSON.parse($('#global-configs').html());
 var table = document.getElementById("main-table");
 table.insertRow().innerHTML = "<td colspan=3><hr></td>";
@@ -159,6 +115,7 @@ for(var i in gc){
     var r = table.insertRow();
     r.innerHTML = html;
 };
+<!--[endif]-->
 
     function setState(){
         if($('#thread-no').val()){
@@ -198,7 +155,7 @@ for(var i in gc){
                         html.push("<div class='div-thread-"+j[i]+"'><a href='javascript:ajst("+j[i]+")'>No."+j[i]+"</a></div>");
                     }
                     $("#search-result").html(html.join(''));
-                }else if(msg == "quitted")
+                }else if(msg.indexOf("quitted") > 0)
                     location.reload();
                 else{
                     alert(msg);
@@ -230,7 +187,7 @@ var graphBits = (function(){
     var display_value;
     var del_mark = false;
     var tick = new Image();
-    tick.src = "/assets/tick.png";
+    tick.src = "/assets/images/tick.png";
 
     function drawCircle(ctx, x, y, r, clr){
         ctx.beginPath();
@@ -454,22 +411,28 @@ var graphBits = (function(){
 <!--[endif]-->
 
 <!--[if !is_admin]-->
-<div>
+<div id="login-panel">
     <!-- 管理密码： -->
-    <input type="text" id="admin-password" value=""/>&nbsp;
-    <!-- <button onclick="login()">登录</button> -->
+    <div id="login-panel-upper"><img id="login-logo" src="/assets/images/logo.png"></div>
+    <div id="login-panel-lower">
+        <table>
+            <tr><td>&#128100;</td><td><input type="text" id="username" value="" placeholder="用户名"/></td></tr>
+            <tr><td>&#128272;</td><td><input type="password" id="password" value="" placeholder="密码"/></td></tr>
+        </table>
+        <button onclick="login()" class="wp-btn">登录</button>
+    </div>
 </div>
 
 <script type="text/javascript">
-    $("#admin-password").keyup(function(e){
+    $("#password").keyup(function(e){
         if(e.keyCode == 13) login();
     });
-    $("#admin-password").focus();
+    
     function login(){
         $.ajax({
             type:'POST',
             url:'/admin_action',
-            data:'action_name=login&action_1='+$('#admin-password').val(),
+            data:'action_name=login&action_1='+$('#username').val() + '&action_2=' + $('#password').val(),
             success: function(msg) { 
                 location.reload();
             }

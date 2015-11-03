@@ -39,7 +39,8 @@ namespace views{
                 .toggle("gallery_page").pipe_to(conn).destory();
 
             if(!configs.global().get<bool>("archive")) 
-                templates.invoke("post_form").toggle("is_admin", is_admin(conn)).toggle("post_new_thread").pipe_to(conn).destory();
+                templates.invoke("post_form").toggle("is_admin", is_admin(conn) || !is_assist(conn).empty()) \
+                .toggle("post_new_thread").pipe_to(conn).destory();
 
             clock_t startc = clock();
             int max_page_viewable = configs.global().get<int>("user::viewable_pages");

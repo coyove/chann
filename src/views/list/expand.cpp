@@ -30,8 +30,8 @@ namespace views{
             templates.invoke("site_header").toggle("thread_page").toggle("is_admin", is_admin(conn)) \
                 .var("THREAD_NO", id).var("THREAD_TITLE", r->author).pipe_to(conn).destory();
 
-            templates.invoke("single_thread_header").toggle("homepage", !pid).var("THREAD_NO", pid) \
-                .toggle("thread", strstr(conn->uri, "/thread/")).pipe_to(conn).destory();
+            templates.invoke("single_thread_header").toggle("homepage", !pid).var("THREAD_NO", id) \
+                .var("PARENT_NO", pid).toggle("thread", strstr(conn->uri, "/thread/")).pipe_to(conn).destory();
 
             clock_t startc = clock();
 
@@ -47,7 +47,8 @@ namespace views{
 
             if(!configs.global().get<bool>("archive"))
                 templates.invoke("post_form") \
-                    .var("THREAD_NO", to_string(id)).toggle("reply_to_thread").toggle("is_admin", admin_view).pipe_to(conn).destory();
+                    .var("THREAD_NO", to_string(id)).toggle("reply_to_thread"). \
+                    toggle("is_admin", admin_view || !is_assist(conn).empty()).pipe_to(conn).destory();
                 
             if (r->childThread) {
                 cclong r_childThread = r->childThread;

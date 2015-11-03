@@ -117,7 +117,7 @@
         <!--[if delete]--><red><b>&#10006;&nbsp;该串已被删除</b></red><br/><!--[endif]-->
 
         <!--[if show_num_replies]-->
-        <a class='dcyan' href='/thread/{{THREAD_NO}}'>&#128172;&nbsp;{{NUM_REPLIES}} 条回复</a><br/>
+        <a class='dcyan' href='/thread/{{THREAD_NO}}'>&#128172;&nbsp;{{NUM_REPLIES}} 条回复 ({{FIRST_REPLY}}...)</a><br/>
         <!--[endif]-->
 
         <!--[endif]-->

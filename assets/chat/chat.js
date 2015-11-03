@@ -1,9 +1,5 @@
-var ws;// = new WebSocket('wss://waifu.cc/ws');
-
-if(window.location.href=='https://waifu.cc/thread/271')
-	ws = new WebSocket('wss://waifu.cc/ws');	
-else{
-}
+var ws;
+ws = new WebSocket('ws://chann.org/ws');	
 
 var rooms = [];
 var myID;
@@ -92,7 +88,7 @@ function alertNewMessage(){
 
 	if(!winFocus) {
 		document.title = "(新消息)" + ori;//setInterval(blinkTitle, 1000);
-		var audio = new Audio('/assets/alert.mp3');
+		var audio = new Audio('/assets/chat/alert.mp3');
 		audio.play();
 	}
 }

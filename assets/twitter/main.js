@@ -16,12 +16,12 @@ Date.prototype.Format = function (fmt) { //author: meizz
     return fmt;
 }
 
-if(window.location.href == "https://waifu.cc/thread/355") getNewData();
+if(window.location.href.indexOf("/thread/355") > 0 ) getNewData();
 
 function getNewData(new_page){
 	if(new_page || new_page == 0) cur_twi_page = new_page;
 
-	microAjax('https://waifu.cc/twitter/' + (cur_twi_page * 20), function (msg){
+	microAjax('/twitter/' + (cur_twi_page * 20), function (msg){
 		var jsonData = JSON.parse(msg);
 		// console.log(jsonData);
 		var tl = document.getElementById('twitter-timeline');

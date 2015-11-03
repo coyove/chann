@@ -1,5 +1,5 @@
-#ifndef CCHAN_CONFIG_HEADER_INCLUDED
-#define CCHAN_CONFIG_HEADER_INCLUDED
+#ifndef CHANN_CONFIG_HEADER_INCLUDED
+#define CHANN_CONFIG_HEADER_INCLUDED
 
 #include <string>
 #include <vector>
@@ -52,9 +52,7 @@ public:
 				if(!tmp.empty()) v.push_back(tmp);
 			}
 
-			// std::cout << line << std::endl;
-
-			if(v[1] == "{"){
+			if(v.size() > 1 && v[1] == "{"){
 				stack_space.push(v[0]);
 				cur_space += (v[0] + "::");
 				continue;
@@ -66,6 +64,9 @@ public:
 				stack_space.pop();
 				continue;
 			}
+
+			if(v.size() < 2) continue;
+						// std::cout << ";" << line << ";" << std::endl;
 
 			std::string val = v[1];
 			std::string key = cur_space + v[0];

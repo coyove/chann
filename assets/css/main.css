@@ -180,16 +180,12 @@ select#emoji,select#options{
 .img-n{
     cursor:-webkit-zoom-in;
     max-height:250px;max-width:250px;
-    /*height:expression((document.documentElement.clientHeight||document.body.clientHeight)>250?\"250px\":\"\");
-    width:expression((document.documentElement.clientWidth||document.body.clientWidth)>250?\"250px\":\"\");*/
 }
 .img-s{
     cursor:-webkit-zoom-in;
     max-height:180px;max-width:180px;
     border: solid 0.5em #CECAC3;
     border-radius: 5px;
-    /*height:expression((document.documentElement.clientHeight||document.body.clientHeight)>180?\"180px\":\"\");
-    width:expression((document.documentElement.clientWidth||document.body.clientWidth)>180?\"180px\":\"\");*/
 }
 .img-l{
     width:100%;
@@ -200,8 +196,6 @@ select#emoji,select#options{
 div.img{
     float:left;margin:0.5em;
     max-height:250px;max-width:250px;
-    /*height:expression((document.documentElement.clientHeight||document.body.clientHeight)>250?\"250px\":\"\");
-    width:expression((document.documentElement.clientWidth||document.body.clientWidth)>250?\"250px\":\"\");*/
 }
 div.file{
     border: dashed 1px;
@@ -408,18 +402,48 @@ span .wp-btn{
     text-align: right;
 }
 
-#admin-password{
-    text-align: center;
-    background-color:transparent;
-    border: none;
+#login-panel {
+    width:200px;
+    height:204px;
     position: absolute;
-    width:100px;
-    height:20px;
-    top:50%;
-    left:50%;
-    margin-top: -10px;
-    margin-left: -50px;
-    cursor: default;
-    color: transparent;
-    text-shadow: 0px 0px 5px black;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: auto;
+    text-align: center;
+    background-color: white;
+    padding:0;
+    border-radius: 5px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    overflow: overlay;
+}
+
+#login-panel #login-logo{
+    width:64px;
+    height:64px;
+}
+
+#login-panel-upper {
+    height: 64px;
+    padding: 10px;
+}
+
+#login-panel-lower {
+    height: 100px;
+    padding: 10px 5px;
+    background-color: #f5f5f5;
+}
+
+#login-panel button.wp-btn {
+    margin-top: 10px;
+}
+
+#username, #password {
+    margin: 2px;
+    padding: 2px;
+    width: 150px;
+    border: none;
+    border-bottom: solid #ccc 1px;
+    background-color: transparent;
 }

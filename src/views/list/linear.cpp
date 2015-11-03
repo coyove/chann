@@ -10,7 +10,13 @@ namespace views{
             const char* needle){
 
             string username = cck_verify_ssid(conn);
+            ConfigManager configs;
+
             bool admin_view = is_admin(conn);
+            if(!admin_view){
+                string ass = is_assist(conn);
+                if(!ass.empty() && configs.global().get<bool>("security::assist::" + ass + "::list")) admin_view = true;
+            }
 
             if (!username.empty()){
                 templates.invoke("site_header").toggle("my_post_page").toggle("is_admin", admin_view).pipe_to(conn).destory();
@@ -20,7 +26,6 @@ namespace views{
 
                 clock_t startc = clock();
 
-                ConfigManager configs;
                 int limit = configs.global().get<int>("user::linear_threads");
 
                 for(int i = r->childCount; i > 0; i--){

@@ -43,13 +43,13 @@
 
 <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 <meta charset='UTF-8'/><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'/>
-<link rel='icon' type='image/png' href='/images/favicon.png'>
+<link rel='icon' type='image/png' href='/assets/favicon.png'>
 
-<link rel='stylesheet' type='text/css' href='/assets/font.css'>
-<link rel='stylesheet' type='text/css' href='/assets/main.css'>
-<link rel='stylesheet' type='text/css' href='/assets/admin.css'>
+<link rel='stylesheet' type='text/css' href='/assets/css/font.css'>
+<link rel='stylesheet' type='text/css' href='/assets/css/main.css'>
+<link rel='stylesheet' type='text/css' href='/assets/css/admin.css'>
 
-<script type='text/javascript' src='/assets/main.js'></script>
+<script type='text/javascript' src='/assets/js/main.js'></script>
 <script type='text/javascript'>
 
 function microAjax(B,A){this.bindFunction=function(E,D){return function(){return E.apply(D,[D])}};this.stateChange=function(D){if(this.request.readyState==4){this.callbackFunction(this.request.responseText)}};this.getRequest=function(){if(window.ActiveXObject){return new ActiveXObject("Microsoft.XMLHTTP")}else{if(window.XMLHttpRequest){return new XMLHttpRequest()}}return false};this.postBody=(arguments[2]||"");this.callbackFunction=A;this.url=B;this.request=this.getRequest();if(this.request){var C=this.request;C.onreadystatechange=this.bindFunction(this.stateChange,this);if(this.postBody!==""){C.open("POST",B,true);C.setRequestHeader("X-Requested-With","XMLHttpRequest");C.setRequestHeader("Content-type","application/x-www-form-urlencoded");C.setRequestHeader("Connection","close")}else{C.open("GET",B,true)}C.send(this.postBody)}};
@@ -144,6 +144,7 @@ function exim(id,url){
 function isar(){
     if(!document.getElementById('input-area')) document.getElementById('start-new-thread').className='hiding';
     footeradj();
+    window.onresize = footeradj();
 
     var dropdown = document.querySelectorAll('.dropdown');
     var dropdownArray = Array.prototype.slice.call(dropdown, 0);
@@ -182,7 +183,7 @@ function footeradj(){
     <div id='container'>
         <div class='page-header'>
             <div class='page-header-lim'>
-                <p style='float:left'><a href='/' style='vertical-align:middle'><img id='header-image' src='/images/main.png'></img></a></p>
+                <p style='float:left'><a href='/' style='vertical-align:middle'><img id='header-image' src='/assets/images/main.png'></img></a></p>
                 <p style='float:right;margin:1em;'>
                     <span onclick='document.getElementById("input-area").className="";' id='start-new-thread'>
                         &#128172;&nbsp;发表新串

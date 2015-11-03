@@ -1,7 +1,5 @@
-#define _CRT_SECURE_NO_WARNINGS
-
-#ifndef CCHAN_HELPER_HEADER_INCLUDED
-#define CCHAN_HELPER_HEADER_INCLUDED
+#ifndef CHANN_HELPER_HEADER_INCLUDED
+#define CHANN_HELPER_HEADER_INCLUDED
 // #include "global.h"
 #include <string>
 #include <iostream>
@@ -13,12 +11,6 @@
 #include <time.h>
 #include <sys/stat.h>
 
-#if defined(_WIN32)
-#define cclong long
-#else
-#define cclong int
-#endif
-
 extern "C"{
 #include "../lib/unqlite/unqlite.h"
 #include "../lib/mongoose/mongoose.h"
@@ -26,9 +18,11 @@ extern "C"{
 
 bool is_admin(mg_connection* conn);
 
+std::string is_assist(mg_connection* conn);
+
 void cck_send_ssid(mg_connection *conn, const std::string c);
 
-void cck_send_admin_ssid(mg_connection *conn, const std::string ssid);
+void cck_send_admin_ssid(mg_connection *conn, const std::string ssid, const char* type = "admin");
 
 std::string 
 cck_create_ssid(const std::string username);
@@ -53,7 +47,7 @@ cc_replace(std::string, const std::string&, const std::string&);
 bool cc_ends_with(std::string const &, std::string const &);
 bool startsWith(std::string const &, std::string const &);
 
-cclong cc_extract_uri_num(mg_connection* conn);
+int cc_extract_uri_num(mg_connection* conn);
 
 void cc_clean_string(std::string& str);
 

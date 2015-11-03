@@ -1,6 +1,6 @@
 
-#ifndef HTML_TEMPLATE_SYSTEM
-#define HTML_TEMPLATE_SYSTEM
+#ifndef CHANN_HTML_TEMPLATE_HEADER_INCLUDED
+#define CHANN_HTML_TEMPLATE_HEADER_INCLUDED
 
 #include <iostream>
 #include <string>

@@ -1,5 +1,5 @@
-#ifndef CCHAN_GENERAL_HEADER_INCLUDED
-#define CCHAN_GENERAL_HEADER_INCLUDED
+#ifndef CHANN_GENERAL_HEADER_INCLUDED
+#define CHANN_GENERAL_HEADER_INCLUDED
 
 extern "C"{
 #include "../lib/unqlite/unqlite.h"
@@ -10,12 +10,12 @@ extern "C"{
 #include <cstring>
 #include <time.h>
 
-#define LOCKED_THREAD   128
 #define NORMAL_DISPLAY  1
 #define THREAD_REPLY    2
 #define MAIN_THREAD     4
 #define TOOMANY_REPLIES 8
 #define SAGE_THREAD     16
+#define LOCKED_THREAD   128
 
 #if defined(_WIN32)
 #define cclong long
@@ -23,6 +23,7 @@ extern "C"{
 #define cclong int
 #endif
 
+// length: 205 bytes
 struct Thread{
     char state;         // thread's state
     /*
@@ -84,7 +85,7 @@ unq_new_thread(unqlite *pDb,
                 const char* title, 
                 const char* ip, 
                 const char* username, 
-                const char* image, bool sega);
+                const char* image, bool sage);
 
 int 
 unq_new_reply(unqlite *pDb, 
@@ -93,6 +94,6 @@ unq_new_reply(unqlite *pDb,
                 const char* title, 
                 const char* ip, 
                 const char* username, 
-                const char* image, bool sega);
+                const char* image, bool sage);
 
 #endif

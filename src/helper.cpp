@@ -7,9 +7,20 @@ using namespace std;
 extern unqlite* pDb;
 extern FILE* log_file;
 extern string admin_cookie;
+extern map<string, string> assist_cookie;
 
 bool is_admin(mg_connection* conn){
     return (cck_extract_ssid(conn) == admin_cookie);
+}
+
+string is_assist(mg_connection* conn){
+    string ssid = cck_extract_ssid(conn);
+    for(auto x = assist_cookie.begin(); x != assist_cookie.end(); ++x){
+    	// cout << x->first << "," << x->second << "," << ssid << endl;
+    	if(x->second == ssid) return x->first;
+    }
+
+   	return string("");
 }
 
 string cck_extract_ssid(mg_connection* conn){
@@ -34,19 +45,19 @@ void cck_send_ssid(mg_connection *conn, const std::string c){
 		c.c_str(), expire, 60 * 60 * 24 * 30);
 }
 
-void cck_send_admin_ssid(mg_connection *conn, const std::string ssid){
+void cck_send_admin_ssid(mg_connection *conn, const string ssid, const char* type){
 	ConfigManager c;
 	char expire[100];
-	time_t t = time(NULL) + 60 * c.global().get<int>("security::admin::expire_time");
+	time_t t = time(NULL) + 60 * c.global().get<int>("security::" + string(type) + "::expire_time");
 	strftime(expire, sizeof(expire), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t));
 
 	mg_printf(conn,
 		"HTTP/1.1 200 OK\r\n"
-		"Set-Cookie: ssid=%s; expires=%s; max-age=%d; path=/; http-only; HttpOnly;\r\n"
+		"Set-Cookie: ssid=%s; expires=%s; path=/; http-only; HttpOnly;\r\n"
 		"Content-type: text/html\r\n"
 		"X-UA-Compatible: IE=edge\r\n"
 		"Content-Length: 0\r\n",
-		ssid.c_str(), expire, 60 * 60 * 24 * 30);
+		ssid.c_str(), expire);
 }
 
 string __generate_appender(const char *username) {
@@ -278,7 +289,7 @@ bool startsWith(std::string const &fullString, std::string const &start) {
 	}
 }
 
-cclong cc_extract_uri_num(mg_connection* conn){
+int cc_extract_uri_num(mg_connection* conn){
 	string url(conn->uri);
 	vector<string> tmp = cc_split(url, "/");
 	string num = tmp[tmp.size() - 1];
@@ -336,7 +347,7 @@ void cc_serve_image_file(mg_connection* conn){
                         "Expires: %s\r\n"
                         // "Cache-Control: must-revalidate\r\n"
                         "Cache-Control: Public\r\n"
-                        "Content-Length: %lu\r\n\r\n", ctype.c_str(), expire, (unsigned cclong)st.st_size);
+                        "Content-Length: %lu\r\n\r\n", ctype.c_str(), expire, (unsigned int)st.st_size);
         while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
             mg_write(conn, buf, n);
         }
