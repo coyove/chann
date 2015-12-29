@@ -22,6 +22,8 @@
 
 <!--[if cookie_is_stopped]-->本站已关闭饼干发放功能<!--[endif]-->
 
+<!--[if can_only_reply]-->普通用户只能回复<!--[endif]-->
+
 <!--[if try_to_usurp]-->您没有管理员权限<!--[endif]-->
 
 <!--[if rapid_accessing]-->您的操作过于频繁[{{IP}}], 请稍后再试<!--[endif]-->

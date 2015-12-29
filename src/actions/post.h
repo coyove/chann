@@ -3,6 +3,7 @@
 #include <string>
 #include <deque>
 #include <unordered_set>
+#include <memory>
 
 extern "C" {
 #include "../../lib/unqlite/unqlite.h"

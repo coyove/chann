@@ -21,7 +21,7 @@ if(window.location.href.indexOf("/thread/355") > 0 ) getNewData();
 function getNewData(new_page){
 	if(new_page || new_page == 0) cur_twi_page = new_page;
 
-	microAjax('/twitter/' + (cur_twi_page * 20), function (msg){
+	Helper.ajax('/twitter/' + (cur_twi_page * 20), function (msg){
 		var jsonData = JSON.parse(msg);
 		// console.log(jsonData);
 		var tl = document.getElementById('twitter-timeline');
@@ -85,7 +85,7 @@ function getNewData(new_page){
 
 		tl.appendChild(e);
 
-		microAjax("/twitter/state", function(msg){
+		Helper.ajax("/twitter/state", function(msg){
 			var j = JSON.parse(msg)[0];
 			var d = new Date(j.Update_time);
 			var t = new Date();

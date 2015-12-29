@@ -7,6 +7,7 @@ extern "C"{
 
 #include <stdio.h>
 #include <string>
+#include <memory>
 #include <cstring>
 #include <time.h>
 
@@ -24,6 +25,7 @@ extern "C"{
 #endif
 
 // length: 205 bytes
+// low-level representation
 struct Thread{
     char state;         // thread's state
     /*
@@ -66,6 +68,9 @@ unq_write_int(unqlite *pDb, const char* key, int value, bool autoCommit);
 
 struct Thread* 
 unq_read_thread(unqlite *pDb, int key);
+
+std::shared_ptr<struct Thread> 
+unq_read_thread_sp(unqlite * pDb, int key);
 
 int     
 unq_write_thread(unqlite *pDb, int key, struct Thread* t, bool autoCommit);

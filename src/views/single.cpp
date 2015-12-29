@@ -65,11 +65,11 @@ namespace views{
         if(r->childThread && !(display_state & SEND_CUT_REPLY_COUNT)){
             struct Thread* c = unq_read_thread(pDb, r->childThread);
             const char *first_reply = unq_read_string(pDb, c->content);
-            string display_reply = string(first_reply);
+            string display_reply = (c->state & NORMAL_DISPLAY) ? string(first_reply) : "";
 
             stats["show_num_replies"]       = true;
             vars["NUM_REPLIES"]             = to_string(c->childCount);
-            vars["FIRST_REPLY"]             = display_reply.substr(0, display_reply.find_first_of("<")).substr(0,15);
+            vars["FIRST_REPLY"]             = cc_smart_shorten(display_reply);// display_reply.substr(0, display_reply.find_first_of("<")).substr(0,15);
 
             delete c;
             delete[] first_reply;

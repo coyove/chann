@@ -19,10 +19,10 @@
             <input id='select-file' type="file" name="input_file" style='width:100%;display:none'/>
             你可以:&nbsp;
             <a href='javascript:void(0)' 
-                onclick='var e=document.getElementById("comment");e.value+=e.value?"\n>>No.":">>No.";e.focus();'>
+                onclick='var e=Helper.$("comment");e.value+=e.value?"\n>>No.":">>No.";e.focus();'>
                 引用串
             </a>,&nbsp;
-            <a id='true-select' href='javascript:void(0)' onclick='document.getElementById("select-file").click()'>
+            <a id='true-select' href='javascript:void(0)' onclick='Helper.$("select-file").click()'>
                 附加图片
             </a>,&nbsp;
             <select id='emoji'>
@@ -40,7 +40,38 @@
             </select>
             
             <script type="text/javascript">
-                setupListeners();
+                Helper.$('comment').onkeydown = function(e){
+                    if(e.keyCode==13&&e.ctrlKey) {
+                        if(confirm('是否送出内容?')) Helper.$('post-form').submit();
+                    }
+                };
+                Helper.$("emoji").onchange = function(e){
+                    var em='';
+                    var elem=Helper.$('comment');
+                    if(this.selectedIndex) em=this.options[this.selectedIndex].text;
+                    this.selectedIndex=0;
+                    if(document.selection){
+                        elem.focus();
+                        sel = document.selection.createRange();
+                        sel.text=em;
+                    }
+                    else if (elem.selectionStart||elem.selectionStart=='0') {
+                        var startPos=elem.selectionStart;
+                        var endPos=elem.selectionEnd;
+                        elem.value=elem.value.substring(0, startPos)+em+elem.value.substring(endPos,elem.value.length);
+                    } else {
+                        elem.value+=em;
+                        elem.focus();
+                    }
+                };
+                Helper.$("options").onchange=function(e){
+                    document.getElementById('opt').value=this.value;
+                };
+                Helper.$("select-file").onchange=function(e){
+                    var e2=Helper.$("true-select");
+                    var filename=this.value.replace(/^.*[\\\/]/, '');
+                    e2.innerHTML='附加图片'+(filename?(': '+filename):'');
+                }
             </script>
         </p>
         <!--[if use_captcha]-->

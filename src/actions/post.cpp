@@ -15,8 +15,6 @@ namespace actions{
 
 
         void call(mg_connection* conn, int post_to){
-            char p_title[64] = {0}, p_content[4096] = {'\0'}, p_options[64] = {'\0'}, p_image[16] = {'\0'}, g_data[1024] = {0};
-
             bool sage = false;
             bool fileAttached = false;
 
@@ -37,9 +35,21 @@ namespace actions{
                 return;
             }
 
+            if(post_to == 0 && configs.global().get<bool>("user::can_only_reply") && !admin_ctrl){
+                views::info::render(conn, templates.invoke("misc").toggle("can_only_reply").build_destory().c_str());
+                return;
+            }
+
+            char p_title[64] = {0}, p_options[64] = {'\0'}, p_image[16] = {'\0'}, g_data[1024] = {0};
+            // char p_content[4096] = {'\0'};
+            int max_len = configs.global().get<int>(string("post::max_size::") + (admin_ctrl ? "admin" : "user"));
+            if(max_len == 0) max_len = 4096;
+
+            auto_ptr<char> p_content(new char[max_len]());
+
             #define GET_VAR(x, l, v) \
                 if (strcmp(var_name, x) == 0) { \
-                    data_len = data_len > l ? l : data_len; \
+                    data_len = data_len > (l) ? (l) : data_len; \
                     strncpy(v, data, data_len); \
                     v[data_len] = 0; }
 
@@ -51,7 +61,7 @@ namespace actions{
 
                 GET_VAR("input_name", 63, p_title);
                 GET_VAR("input_email", 63, p_options);
-                GET_VAR("input_content", 4095, p_content);
+                GET_VAR("input_content", max_len - 1, p_content.get());
 
                 #ifdef GOOGLE_RECAPTCHA
                 GET_VAR("g-recaptcha-response", 1023, g_data);
@@ -119,20 +129,11 @@ namespace actions{
 
             #undef GET_VAR
 
-            //see if there is a SPECIAL string in the text field
+            string tmpcontent(p_content.get());
+
             if (strcmp(p_title, "") == 0) strcpy(p_title, "untitled");
-            //user trying to sega a thread/reply
             if (strstr(p_options, "sage") && configs.global().get<bool>("post::allow_self::sage")) sage = true;
-            //user trying to delete a thread/reply
-            // if (strstr(p_options, "delete") && configs.global().get<bool>("post::allow_self::delete")){
-            //     int id = cc_extract_uri_num(conn);
-                
-            //     if(actions::admin::delete_thread(conn, id, admin_ctrl))
-            //         views::info::render(conn, templates.invoke("misc").toggle("delete_okay").var("THREAD_NO", id).build_destory().c_str());
-            //     else
-            //         views::info::render(conn, templates.invoke("misc").toggle("try_to_usurp").build_destory().c_str());
-            //     return;
-            // }
+
             if (strstr(p_options, "url")){
                 templates.invoke("site_header").toggle("upload_image_page").pipe_to(conn).destory();
                 templates.invoke("info_page").toggle("upload_image_page").var("IMAGE", p_image).pipe_to(conn).destory();
@@ -141,17 +142,18 @@ namespace actions{
                 logLog("Image uploaded and won't be posted");
                 return;
             }
-            //admin trying to update a thread/reply
+            //admin/assist trying to update a thread/reply
             if (strstr(p_options, "update") && 
                 (admin_ctrl || configs.global().get<bool>("security::assist::" + is_assist(conn) + "::update"))){
                 int id = cc_extract_uri_num(conn);
                 struct Thread * t = unq_read_thread(pDb, id); 
 
                 if(!strstr(p_options, "html")){
-                    string up_str = cc_replace(string(p_content), string("\n"), string("<br>"));
+                    // string up_str = cc_replace(string(p_content), string("\n"), string("<br>"));
+                    string up_str = cc_htmlify(tmpcontent, false);
                     unq_write_string(pDb, t->content, up_str.c_str(), true); 
                 }else
-                    unq_write_string(pDb, t->content, p_content, true); 
+                    unq_write_string(pDb, t->content, p_content.get(), true); 
 
                 views::info::render(conn, "Thread updated successfully");
                 logLog("Admin (%s) has edited No.%d", is_assist(conn).c_str(), t->threadID);
@@ -161,17 +163,16 @@ namespace actions{
             }
 
                 //image or comment or both
-            if (strcmp(p_content, "") == 0 && !fileAttached) {
+            if (strcmp(p_content.get(), "") == 0 && !fileAttached) {
                 views::info::render(conn, templates.invoke("misc").toggle("cannot_post_null").build_destory().c_str());
                 return;
-            }else if (strcmp(p_content, "") == 0 && fileAttached){
-                strcpy(p_content, templates.invoke("misc").toggle("null_comment").build_destory().c_str());
+            }else if (strcmp(p_content.get(), "") == 0 && fileAttached){
+                strcpy(p_content.get(), templates.invoke("misc").toggle("null_comment").build_destory().c_str());
             }
             
 
             string username = cck_verify_ssid(conn);
             string ssid = cck_extract_ssid(conn);
-            // mg_parse_header(mg_get_header(conn, "Cookie"), "ssid", ssid, sizeof(ssid));
 
             if (!username.empty()){  //passed
                 string findID = username;
@@ -198,31 +199,35 @@ namespace actions{
             string ass = is_assist(conn);
             if(!ass.empty()) username = ass.substr(0, 9);
 
-            //replace some important things
-            string tmpcontent(p_content);  cc_clean_string(tmpcontent);
-            string tmpname(p_title);       cc_clean_string(tmpname);
+            if(admin_ctrl)
+                tmpcontent = cc_htmlify(tmpcontent, false);
+            else
+                tmpcontent = cc_htmlify(tmpcontent, configs.global().get<bool>("user::strict"));
 
+            string tmpname(p_title);
+            cc_clean_string(tmpname);
             strncpy(p_title, tmpname.c_str(), 64);
 
-            vector<string> imageDetector = cc_split(tmpcontent, "\n");
-            tmpcontent = "";
+            // vector<string> imageDetector = cc_split(tmpcontent, "\n");
+            // tmpcontent = "";
 
-            for (auto i = 0; i < imageDetector.size(); ++i){
-                if (startsWith(imageDetector[i], "http"))
-                    imageDetector[i] = "<a href='" + imageDetector[i] + "'>" + imageDetector[i] + "</a>";
-                bool refFlag = false;
-                if (startsWith(imageDetector[i], "&gt;&gt;No.")){
-                    vector<string> gotoLink = cc_split(imageDetector[i], string("."));
-                    if (gotoLink.size() == 2){
-                        imageDetector[i] = "<div class='div-thread-" + gotoLink[1] + "'><a href='javascript:ajst(" + gotoLink[1] + ")'>" + imageDetector[i] + "</a></div>";
-                        refFlag = true;
-                    }
-                }
-                if (startsWith(imageDetector[i], "&gt;"))
-                    imageDetector[i] = "<ttt>" + imageDetector[i] + "</ttt>";
+            // for (auto i = 0; i < imageDetector.size(); ++i){
+            //     if (startsWith(imageDetector[i], "http"))
+            //         imageDetector[i] = "<a href='" + imageDetector[i] + "'>" + imageDetector[i] + "</a>";
+            //     bool refFlag = false;
+            //     if (startsWith(imageDetector[i], "&gt;&gt;No.")){
+            //         vector<string> gotoLink = cc_split(imageDetector[i], string("."));
+            //         if (gotoLink.size() == 2){
+            //             imageDetector[i] = "<div class='div-thread-" + gotoLink[1] + "'><a href='javascript:ajst(" + gotoLink[1] + ")'>" + imageDetector[i] + "</a></div>";
+            //             refFlag = true;
+            //         }
+            //     }
+            //     if (startsWith(imageDetector[i], "&gt;"))
+            //         imageDetector[i] = "<ttt>" + imageDetector[i] + "</ttt>";
 
-                tmpcontent.append(imageDetector[i] + ((!refFlag) ? "<br/>" : ""));
-            }
+            //     tmpcontent.append(imageDetector[i] + ((!refFlag) ? "<br/>" : ""));
+            // }
+
 
             const char * cip = cc_get_client_ip(conn);
             logLog("New thread %s (%s) posted by %s as '%s' dumped to '%s'", p_title, p_image, cip, p_options, dump_name.c_str());

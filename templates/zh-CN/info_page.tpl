@@ -1,16 +1,16 @@
 <!--[if info_page]-->
 <script type="text/javascript">
-    setTimeout(function(){window.location="/";}, 2000);
+    setTimeout(function(){window.location="{{HOMEPAGE}}";}, 2000);
 </script>
-{{CONTENT}}, 2s后返回<a href="/">主页</a>.
+{{CONTENT}}, 2s后返回<a href="{{HOMEPAGE}}">主页</a>.
 <!--[endif]-->
 
 <!--[if return_page]-->
 	<!--[if THREAD_NO=0]-->
 	<script type="text/javascript">
-	    setTimeout(function(){window.location="/";}, 2000);
+	    setTimeout(function(){window.location="{{HOMEPAGE}}";}, 2000);
 	</script>
-	成功发表新串, 2s后返回<a href="/">主页</a>.
+	成功发表新串, 2s后返回<a href="{{HOMEPAGE}}">主页</a>.
 	<!--[endif]-->
 	<!--[if !THREAD_NO=0]-->
 	<script type="text/javascript">

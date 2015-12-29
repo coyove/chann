@@ -50,6 +50,7 @@ bool startsWith(std::string const &, std::string const &);
 int cc_extract_uri_num(mg_connection* conn);
 
 void cc_clean_string(std::string& str);
+std::string cc_htmlify(std::string& s, bool strict);
 
 std::string cc_random_chars(int len);
 std::string cc_random_username();
@@ -60,7 +61,8 @@ void database_fatal(const char *zMsg);
 void logLog(const char* msg, ...);
 
 void cc_serve_image_file(mg_connection* conn);
-// bool is_admin(mg_connection* conn);
+
+std::string cc_smart_shorten(std::string& s, int limiter = 36);
 
 void cc_write_binary(const char* filename, const char* data, unsigned len);
 

@@ -11,7 +11,7 @@
         <!--[if image_attached]-->
             <!--[if show_size_only]-->
                 <div class='img'>
-                    <a id='img-{{THREAD_NO}}' href='javascript:void(0)' onclick='exim("img-{{THREAD_NO}}","{{THREAD_IMAGE}}")'>
+                    <a id='img-{{THREAD_NO}}' href='javascript:void(0)' onclick='Helper.Image.expand(this,"{{THREAD_IMAGE}}")'>
                         [查看图片 ({{THREAD_IMAGE_SIZE}} kb)]
                     </a>
                 </div>
@@ -19,7 +19,7 @@
             <!--[if show_full_image]-->
                 <div class='img'>
                     <a id='img-{{THREAD_NO}}' href='javascript:void(0)' 
-                        onclick="enim('img-{{THREAD_NO}}','/images/{{THREAD_IMAGE}}','{{THREAD_THUMB_PREFIX}}{{THREAD_IMAGE}}')">
+                        onclick="Helper.Image.enlarge(this,'/images/{{THREAD_IMAGE}}','{{THREAD_THUMB_PREFIX}}{{THREAD_IMAGE}}')">
                         <img class='img-<!--[if reply]-->s<!--[endif]--><!--[if !reply]-->n<!--[endif]-->' src='{{THREAD_THUMB_PREFIX}}{{THREAD_IMAGE}}'/>
                     </a>
                 </div>
@@ -63,7 +63,7 @@
             <!--[endif]-->
             <!--[endif]-->
             <!--[if show_reply]-->
-            <a href="javascript:qref({{THREAD_NO}})">No.{{THREAD_NO}}</a>&nbsp;
+            <a href="javascript:Helper.Thread.refer({{THREAD_NO}})">No.{{THREAD_NO}}</a>&nbsp;
             <!--[endif]--><!--[if !show_reply]-->
             <a href='/thread/{{THREAD_NO}}'>No.{{THREAD_NO}}</a>&nbsp;
             <!--[endif]-->

@@ -9,6 +9,7 @@ namespace views{
             bool id_based,
             const char* needle){
 
+            string ssid = cck_extract_ssid(conn);
             string username = cck_verify_ssid(conn);
             ConfigManager configs;
 
@@ -55,7 +56,7 @@ namespace views{
                 }
                 clock_t endc = clock();
                 //site_footer(conn, (float)(endc-startc)/CLOCKS_PER_SEC);
-                templates.invoke("site_footer").var("TIME", (int)((endc-startc) * 1000 / CLOCKS_PER_SEC)).pipe_to(conn).destory();
+                templates.invoke("site_footer").var("BUILD_DATE", ssid).var("TIME", (int)((endc-startc) * 1000 / CLOCKS_PER_SEC)).pipe_to(conn).destory();
 
                 if(r) delete r;
             }else{

@@ -8,7 +8,6 @@
 #include <unordered_set>
 #include <deque>
 #include <fstream>
-#include <chrono>
 #include <sys/stat.h>
 #include <signal.h>
 
@@ -382,6 +381,11 @@ static int event_handle(struct mg_connection *conn, enum mg_event ev) {
                         actions::admin::call(conn);
                         break;
                     default:
+                    if(configs.global().get<bool>("welcome")){
+                        templates.invoke("site_header").pipe_to(conn).destory();
+                        templates.invoke("site_welcome").pipe_to(conn).destory();
+                        templates.invoke("site_footer").var("TIME", 0).pipe_to(conn).destory();
+                    }else
                         views::timeline::render(conn, true);
                 }
 
@@ -442,8 +446,12 @@ int main(int argc, char *argv[]){
     templates.use_lang(configs.global().get("lang"));
     logLog("Load %d templates", templates.load_templates());
 
-    templates.add_template("site_header").var("SITE_TITLE", configs.global().get("title"));
+    string homepage = configs.global().get<bool>("welcome") ? "/page/1" : "/";
+    templates.add_template("site_header").var("SITE_TITLE", configs.global().get("title")).var("HOMEPAGE", homepage);
+    templates.add_template("single_thread_header").var("HOMEPAGE", homepage);
+    templates.add_template("info_page").var("HOMEPAGE", homepage);
     templates.add_template("site_footer").var("BUILD_DATE", to_string(BUILD_DATE));
+
 
     bool use_captcha = configs.global().get<bool>("security::captcha");
     #ifndef GOOGLE_RECAPTCHA

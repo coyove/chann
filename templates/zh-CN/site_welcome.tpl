@@ -1,0 +1,1 @@
+<a href="/page/1"><img style="width:300px;height:400px;left:0;right:0;top:0;bottom:0;margin:auto;position:absolute;z-index:-99" src="/assets/images/haha.jpg"></a>

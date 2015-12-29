@@ -1,6 +1,6 @@
 <div style="margin: 0.5em">
 	<!--[if homepage]-->
-	<div style="float: left;"><a href="/">&#171; 主页</a></div>
+	<div style="float: left;"><a href="{{HOMEPAGE}}">&#171; 主页</a></div>
 	<!--[endif]-->
 
 	<!--[if !homepage]-->

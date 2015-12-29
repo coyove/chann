@@ -5,43 +5,48 @@ using namespace std;
 namespace views{
     namespace timeline{
         void showThreads(mg_connection* conn, int startID, int endID){
-            struct Thread *r = unq_read_thread(pDb, 0); // get the root thread
+            //struct Thread *r = unq_read_thread(pDb, 0); // get the root thread
+            auto r = unq_read_thread_sp(pDb, 0);
             int c = 0;
 
             bool admin_view = is_admin(conn);
             string username = cck_verify_ssid(conn);
 
-            int totalThreads = r->childCount;
+            int totalThreads = r.get()->childCount;
 
             templates.invoke("site_slogan").pipe_to(conn).destory();
 
-            while (r->nextThread){
-                int tmpid = r->nextThread;
-                delete r;
-                r = unq_read_thread(pDb, tmpid);
+            while (r.get()->nextThread){
+                // int tmpid = r->nextThread;
+                // delete r;
+                // r = unq_read_thread(pDb, tmpid);
+                r = unq_read_thread_sp(pDb, r.get()->nextThread);
                 c++;
+
                 if (c >= startID && c <= endID){
                     mg_printf_data(conn, "<hr>");
-                    //views::each_thread(conn, r, false, true, true, false, admin_view);
-                    views::each_thread(conn, r, SEND_SHOW_REPLY_LINK + SEND_CUT_LONG_COMMENT + SEND_CUT_REPLY_COUNT, admin_view, "", username.c_str());
+                    views::each_thread(conn, r.get(), SEND_SHOW_REPLY_LINK + SEND_CUT_LONG_COMMENT + SEND_CUT_REPLY_COUNT, admin_view, "", username.c_str());
+
                     char *iid = new char[10];
-                    strcpy(iid, r->ssid);
+                    strcpy(iid, r.get()->ssid);
 
-                    struct Thread *oldr = r;
+                    // struct Thread *oldr = r;
+                    auto oldr = r;
 
-                    if (r->childThread) {
-                        struct Thread* first_thread;
-                        first_thread = unq_read_thread(pDb, r->childThread); // beginning of the circle
-                        r = first_thread;
-
-                        vector<struct Thread *> vt;
-                        // vector<struct Thread *> vt_next;
+                    if (r.get()->childThread) {
+                        // struct Thread* first_thread;
+                        // first_thread = unq_read_thread(pDb, r->childThread); // beginning of the circle
+                        // r = first_thread;
+                        // vector<struct Thread *> vt;
+                        auto first_thread = r;
+                        r = first_thread = unq_read_thread_sp(pDb, r.get()->childThread);
+                        vector<decltype(r)> vt;
 
                         int i = 1;
                         while(i <= 4){
-                            r = unq_read_thread(pDb, r->prevThread);
+                            r = unq_read_thread_sp(pDb, r.get()->prevThread);
 
-                            if(r->threadID != first_thread->threadID) {
+                            if(r.get()->threadID != first_thread.get()->threadID) {
                                 vt.push_back(r);
                                 i++;
                             }else
@@ -50,19 +55,24 @@ namespace views{
 
                         vt.push_back(first_thread);
 
-                        if(first_thread->childCount <= 5)
-                            for (int i = vt.size() - 1; i >= 0; i--){
-                                views::each_thread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid, username.c_str());
-                                delete vt[i];
+                        if(first_thread.get()->childCount <= 5)
+                        {
+                            for (int i = vt.size() - 1; i >= 0; i--)
+                            {
+                                views::each_thread(conn, vt[i].get(), 
+                                    SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid, username.c_str());
+                                // delete vt[i];
                             }
-                        else{
+                        }
+                        else
+                        {
                             for (int i = vt.size() - 1; i >= 0; i--){
-                                views::each_thread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid, username.c_str());
-                                delete vt[i];
+                                views::each_thread(conn, vt[i].get(), SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid, username.c_str());
+                                // delete vt[i];
                                 if(i == vt.size() - 1){
                                     templates.invoke("expand_hidden_replies") \
-                                        .var("THREAD_NO", oldr->threadID) \
-                                        .var("NUM_HIDDEN_REPLIES", first_thread->childCount - 5) \
+                                        .var("THREAD_NO", oldr.get()->threadID) \
+                                        .var("NUM_HIDDEN_REPLIES", first_thread.get()->childCount - 5) \
                                         .pipe_to(conn).destory();
                                 }
                             }
@@ -76,7 +86,8 @@ namespace views{
                 
                 if (c == endID + 1) break;
             }
-            if(r) delete r;
+
+            // if(r) delete r;
         }
         
         void render(mg_connection* conn, bool indexPage){
