@@ -1,10 +1,8 @@
 #include "helper.h"
-// #include "cookie.h"
 #include "config.h"
 
 using namespace std;
 
-extern unqlite* pDb;
 extern FILE* log_file;
 extern string admin_cookie;
 extern map<string, string> assist_cookie;
@@ -142,14 +140,23 @@ string cc_valid_image_ext(string name){
     return ext;
 }
 
-string cc_random_chars(int len){
-    char *username = new char[len + 1];
-    unqlite_util_random_string(pDb, username, len);
-    username[len] = 0;
+string cc_random_chars(uint32_t len){
+    //char *username = new char[len + 1];
+    //unqlite_util_random_string(pDb, username, len);
+    //username[len] = 0;
 
-    string ret(username);
+    //string ret(username);
 
-    delete [] username;
+    //delete [] username;
+    const char * table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    std::string ret;
+    ret.reserve(len);
+    srand(time(NULL));
+
+    for(uint32_t i = 0; i < len; ++i)
+    {
+        ret.push_back(table[rand() % 62]);
+    }
 
     return ret;
 }
@@ -203,25 +210,6 @@ void logLog(const char* msg, ...){
 }
 
 void database_fatal(const char *zMsg){
-    if (pDb){
-        const char *zErr;
-        int iLen = 0; /* Stupid cc warning */
-
-        /* Extract the database error log */
-        unqlite_config(pDb, UNQLITE_CONFIG_ERR_LOG, &zErr, &iLen);
-        if (iLen > 0){
-            /* Output the DB error log */
-            puts(zErr); /* Always null termniated */
-        }
-    }
-    else{
-        if (zMsg){
-            puts(zMsg);
-        }
-    }
-    /* Manually shutdown the library */
-    unqlite_lib_shutdown();
-    /* Exit immediately */
     exit(0);
 }
 

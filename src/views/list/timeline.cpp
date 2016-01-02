@@ -6,88 +6,81 @@ namespace views{
     namespace timeline{
         void showThreads(mg_connection* conn, int startID, int endID){
             //struct Thread *r = unq_read_thread(pDb, 0); // get the root thread
-            auto r = unq_read_thread_sp(pDb, 0);
+            //auto r = unq_read_thread_sp(pDb, 0);
+            auto r = _Thread::read(0); // get the root
             int c = 0;
 
             bool admin_view = is_admin(conn);
             string username = cck_verify_ssid(conn);
 
-            int totalThreads = r.get()->childCount;
+            int totalThreads = r.children_count;// r.get()->childCount;
 
             templates.invoke("site_slogan").pipe_to(conn).destory();
 
-            while (r.get()->nextThread){
-                // int tmpid = r->nextThread;
-                // delete r;
-                // r = unq_read_thread(pDb, tmpid);
-                r = unq_read_thread_sp(pDb, r.get()->nextThread);
+            //while (r.get()->nextThread){
+            while(r.goto_next().no != 0)
+            {
+                //r = unq_read_thread_sp(pDb, r.get()->nextThread);
                 c++;
 
                 if (c >= startID && c <= endID){
                     mg_printf_data(conn, "<hr>");
-                    views::each_thread(conn, r.get(), SEND_SHOW_REPLY_LINK + SEND_CUT_LONG_COMMENT + SEND_CUT_REPLY_COUNT, admin_view, "", username.c_str());
+                    views::each_thread(conn, r, SEND_SHOW_REPLY_LINK + SEND_CUT_LONG_COMMENT + SEND_CUT_REPLY_COUNT, admin_view, "", username);
+                    //if (r.get()->childThread) {
+                    if(r.child) // thread has replies
+                    {
+                        //auto first_thread = r;
+                        //r = first_thread = unq_read_thread_sp(pDb, r.get()->childThread);
+                        _Thread first_reply = _Thread::read(r.child);
+                        _Thread iter = first_reply;
 
-                    char *iid = new char[10];
-                    strcpy(iid, r.get()->ssid);
-
-                    // struct Thread *oldr = r;
-                    auto oldr = r;
-
-                    if (r.get()->childThread) {
-                        // struct Thread* first_thread;
-                        // first_thread = unq_read_thread(pDb, r->childThread); // beginning of the circle
-                        // r = first_thread;
-                        // vector<struct Thread *> vt;
-                        auto first_thread = r;
-                        r = first_thread = unq_read_thread_sp(pDb, r.get()->childThread);
                         vector<decltype(r)> vt;
 
                         int i = 1;
                         while(i <= 4){
-                            r = unq_read_thread_sp(pDb, r.get()->prevThread);
+                            //r = unq_read_thread_sp(pDb, r.get()->prevThread);
+                            iter.goto_prev();
 
-                            if(r.get()->threadID != first_thread.get()->threadID) {
-                                vt.push_back(r);
+                            //if(r.get()->threadID != first_thread.get()->threadID) {
+                            if(iter.no != first_reply.no)
+                            {
+                                vt.push_back(iter);
                                 i++;
                             }else
                                 break;
                         }
 
-                        vt.push_back(first_thread);
+                        vt.push_back(first_reply);
 
-                        if(first_thread.get()->childCount <= 5)
+                        //if(first_thread.get()->childCount <= 5)
+                        if(r.children_count <= 5)
                         {
                             for (int i = vt.size() - 1; i >= 0; i--)
                             {
-                                views::each_thread(conn, vt[i].get(), 
-                                    SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid, username.c_str());
-                                // delete vt[i];
+                                views::each_thread(conn, vt[i], 
+                                    SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, r.author, username);
                             }
                         }
                         else
                         {
                             for (int i = vt.size() - 1; i >= 0; i--){
-                                views::each_thread(conn, vt[i].get(), SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, iid, username.c_str());
+                                views::each_thread(conn, vt[i], SEND_IS_REPLY + SEND_CUT_LONG_COMMENT, admin_view, r.author, username);
                                 // delete vt[i];
                                 if(i == vt.size() - 1){
                                     templates.invoke("expand_hidden_replies") \
-                                        .var("THREAD_NO", oldr.get()->threadID) \
-                                        .var("NUM_HIDDEN_REPLIES", first_thread.get()->childCount - 5) \
+                                        .var("THREAD_NO", r.no) \
+                                        .var("NUM_HIDDEN_REPLIES", r.children_count - 5) \
                                         .pipe_to(conn).destory();
                                 }
                             }
                         }
 
                     }
-
-                    r = oldr;
-                    delete [] iid;
+                        // finish rendering children
                 }
                 
                 if (c == endID + 1) break;
             }
-
-            // if(r) delete r;
         }
         
         void render(mg_connection* conn, bool indexPage){
@@ -111,7 +104,7 @@ namespace views{
             if(indexPage)
                 showThreads(conn, start_no, end_no);
             else{
-                cclong cp = cc_extract_uri_num(conn);
+                uint32_t cp = cc_extract_uri_num(conn);
                 if(cp <= max_page_viewable || max_page_viewable == 0 || admin_view){
                     end_no = cp * threads_per_page;
                     start_no = end_no- threads_per_page + 1;
@@ -119,9 +112,9 @@ namespace views{
                 }
             }
 
-            cclong current_page = end_no / threads_per_page;
+            uint32_t current_page = end_no / threads_per_page;
             queue<string> before, after;
-            for (cclong i = 1; i <= (max_page_viewable == 0 || admin_view ? 10000 : max_page_viewable); ++i){
+            for (uint32_t i = 1; i <= (max_page_viewable == 0 || admin_view ? 10000 : max_page_viewable); ++i){
                 if (current_page - i < 4 && current_page - i > 0) before.push(to_string(i));
                 else if (i - current_page < 4 && i - current_page > 0) after.push(to_string(i));
                 else if (i - current_page > 4) break;

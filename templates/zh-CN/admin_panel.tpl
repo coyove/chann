@@ -287,7 +287,8 @@ var graphBits = (function(){
         }
 
         drawCircle(ctx, pos[7].x, pos[7].y + 60, 8, del_mark ? '#f88': '#fff');
-        if(del_mark) ctx.drawImage(tick, 0, 0, 18, 18, pos[7].x - 8, pos[7].y + 52, 16, 16);
+        /*if(del_mark) 
+            ctx.drawImage(tick, 0, 0, 18, 18, pos[7].x - 8, pos[7].y + 52, 16, 16);*/
         ctx.save();
         ctx.translate(pos[7].x + 15, pos[7].y + 58);
         ctx.textAlign = 'left';
@@ -416,8 +417,8 @@ var graphBits = (function(){
     <div id="login-panel-upper"><img id="login-logo" src="/assets/images/logo.png"></div>
     <div id="login-panel-lower">
         <table>
-            <tr><td>&#128100;</td><td><input type="text" id="username" value="" placeholder="用户名"/></td></tr>
-            <tr><td>&#128272;</td><td><input type="password" id="password" value="" placeholder="密码"/></td></tr>
+            <tr><td><aff>&#xf007;</aff></td><td><input type="text" id="username" value="" placeholder="用户名"/></td></tr>
+            <tr><td><aff>&#xf084;</aff></td><td><input type="password" id="password" value="" placeholder="密码"/></td></tr>
         </table>
         <button onclick="login()" class="wp-btn">登录</button>
     </div>

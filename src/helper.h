@@ -10,9 +10,9 @@
 #include <algorithm>
 #include <time.h>
 #include <sys/stat.h>
+#include <stdarg.h>
 
 extern "C"{
-#include "../lib/unqlite/unqlite.h"
 #include "../lib/mongoose/mongoose.h"
 }
 
@@ -52,7 +52,7 @@ int cc_extract_uri_num(mg_connection* conn);
 void cc_clean_string(std::string& str);
 std::string cc_htmlify(std::string& s, bool strict);
 
-std::string cc_random_chars(int len);
+std::string cc_random_chars(uint32_t len);
 std::string cc_random_username();
 
 std::string cc_valid_image_ext(std::string name);

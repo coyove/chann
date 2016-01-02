@@ -4,31 +4,29 @@ using namespace std;
 
 namespace views{
     namespace gallery{
-        void showGallery(mg_connection* conn, cclong startID, cclong endID){
-            struct Thread *r = unq_read_thread(pDb, 0); // get the root thread
-            cclong c = 0;
+        void showGallery(mg_connection* conn, int32_t startID, int32_t endID){
+            _Thread root = _Thread::read(0);
+            int32_t c = 0;
 
             bool admin_view = is_admin(conn);
 
-            cclong totalThreads = r->childCount;
-            // cclong totalPages = 100;
+            uint32_t totalThreads = root.children_count;
 
             templates.invoke("site_slogan").pipe_to(conn).destory();
 
-            for(cclong i = totalThreads; i > 0; --i){
-                delete r;
-                r = unq_read_thread(pDb, i);
-                if(strlen(r->imgSrc) == 15 && r->state & NORMAL_DISPLAY) {
+            for(int32_t i = totalThreads; i > 0; --i){
+                _Thread th = _Thread::read(i);// unq_read_thread(pDb, i);
+                if(!th.img.empty() && th.state & _Thread::NORMAL) 
+                {
                     c++;
                     if (c >= startID && c <= endID){
                         mg_printf_data(conn, "<hr>");
-                        views::each_thread(conn, r, SEND_SHOW_REPLY_LINK + SEND_CUT_LONG_COMMENT, admin_view);
+                        views::each_thread(conn, th, SEND_SHOW_REPLY_LINK + SEND_CUT_LONG_COMMENT, admin_view);
                     }
                 }
                 
                 if (c == endID + 1) break;
             }
-            if(r) delete r;
         }
         
         void render(mg_connection* conn){
@@ -49,16 +47,16 @@ namespace views{
             bool admin_view = is_admin(conn);
             int start_no = 1, end_no = threads_per_page;
 
-            cclong cp = cc_extract_uri_num(conn);
+            uint32_t cp = cc_extract_uri_num(conn);
             if(cp <= max_page_viewable || max_page_viewable == 0 || admin_view){
                 end_no = cp * threads_per_page;
                 start_no = end_no - threads_per_page + 1;
                 showGallery(conn, start_no, end_no);
             }
             
-            cclong current_page = end_no / threads_per_page;
+            uint32_t current_page = end_no / threads_per_page;
             queue<string> before, after;
-            for (cclong i = 1; i <= (max_page_viewable == 0 || admin_view ? 10000 : max_page_viewable); ++i){
+            for (uint32_t i = 1; i <= (max_page_viewable == 0 || admin_view ? 10000 : max_page_viewable); ++i){
                 if (current_page - i < 4 && current_page - i > 0) before.push(to_string(i));
                 else if (i - current_page < 4 && i - current_page > 0) after.push(to_string(i));
                 else if (i - current_page > 4) break;

@@ -4,11 +4,9 @@
 #include <deque>
 
 extern "C" {
-#include "../../lib/unqlite/unqlite.h"
 #include "../../lib/mongoose/mongoose.h"
 }
 
-#include "../general.h"
 #include "../helper.h"
 #include "../config.h"
 #include "../tags.h"

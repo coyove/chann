@@ -7,18 +7,16 @@
 #include <queue>
 
 extern "C" {
-#include "../../../lib/unqlite/unqlite.h"
 #include "../../../lib/mongoose/mongoose.h"
 }
 
-#include "../../general.h"
 #include "../../helper.h"
 #include "../../config.h"
 #include "../../tags.h"
+#include "../../data.h"
 #include "../single.h"
 
 extern TemplateManager templates;
-extern unqlite *pDb;
 
 #define LINEAR_ADMIN_VIEW 	1
 #define LINEAR_IP_BASED		2
@@ -29,7 +27,7 @@ namespace views{
 		void render(mg_connection* conn, 
 		    bool ip_based = false,
 		    bool id_based = false,
-		    const char* needle = "");
+		    std::string needle = "");
 	}
 
 }

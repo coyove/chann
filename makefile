@@ -1,4 +1,4 @@
-LIBS=-pthread -lcurl
+LIBS=-pthread -lleveldb
 CXX11_FLAGS=-std=c++11 -lstdc++ -O2
 CXXFLAGS=-std=c++11 -lstdc++
 WARN_FLAGS=-Wno-write-strings -Wno-literal-suffix
@@ -11,7 +11,7 @@ endif
 
 VERSION=`date +'%y%m%d%H%M%S'`
 
-VPATH=./lib/unqlite/:./lib/mongoose/:./src/:./src/views/
+VPATH=./lib/mongoose/:./src/:./src/views/
 
 BUILDDIR=./build
 
@@ -21,7 +21,7 @@ SOURCE+=$(wildcard ./src/views/list/*.cpp)
 SOURCE+=$(wildcard ./src/actions/*.cpp)
 
 OBJECT:=$(patsubst ./src/%, ./build/%, $(patsubst %.cpp, %.o, $(SOURCE)))
-OBJECT+=./build/libs/unqlite.o ./build/libs/mongoose.o
+OBJECT+=./build/libs/mongoose.o
 
 cchan: $(OBJECT)
 	$(CXX) $(WARN_FLAGS) $(LIBS) $(CXX11_FLAGS) $(OBJECT) -o chann

@@ -110,14 +110,12 @@
             {{THREAD_CONTENT}}
         </div>
 
-        
-
-        <!--[if sage]--><red><b>&#128078;&nbsp;该串已被SAGE</b></red><br/><!--[endif]-->
-        <!--[if lock]--><red><b>&#128274;&nbsp;该串已被锁定</b></red><br/><!--[endif]-->
-        <!--[if delete]--><red><b>&#10006;&nbsp;该串已被删除</b></red><br/><!--[endif]-->
+        <!--[if sage]--><red><b><aff>&#xf165;</aff>&nbsp;该串已被SAGE</b></red><br/><!--[endif]-->
+        <!--[if lock]--><red><b><aff>&#xf023;</aff>&nbsp;该串已被锁定</b></red><br/><!--[endif]-->
+        <!--[if delete]--><red><b><aff>&#xf1f8;</aff>&nbsp;该串已被删除</b></red><br/><!--[endif]-->
 
         <!--[if show_num_replies]-->
-        <a class='dcyan' href='/thread/{{THREAD_NO}}'>&#128172;&nbsp;{{NUM_REPLIES}} 条回复 ({{FIRST_REPLY}}...)</a><br/>
+        <a class='dcyan' href='/thread/{{THREAD_NO}}'><aff>&#xf075;</aff>&nbsp;{{NUM_REPLIES}} 条回复 ({{FIRST_REPLY}}...)</a><br/>
         <!--[endif]-->
 
         <!--[endif]-->

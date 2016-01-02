@@ -6,24 +6,32 @@ namespace actions{
     namespace kill{
         ConfigManager configs;
 
-        bool call(mg_connection* conn, int tid, bool admin){
+        bool call(mg_connection * conn, uint32_t tid, bool admin){
             string username = cck_verify_ssid(conn);
             bool flag = false;
 
-            if (!username.empty()){
-                struct Thread* t = unq_read_thread(pDb, tid);
+            if (admin || !username.empty())
+            {
+                //struct Thread* t = unq_read_thread(pDb, tid);
+                _Thread th = _Thread::read(tid);
 
-                if (strcmp(t->ssid, username.c_str()) == 0 || admin){
-                    unq_delete_thread(pDb, tid);
+                if (th.author == username || admin)
+                {
+                    if (th.state & _Thread::THREAD)
+                        _Thread::unlink(tid);
+                    else
+                    {
+                        th.state |= _Thread::NORMAL;
+                        th.state -= _Thread::NORMAL;
+                        _Thread::write(th);
+                    }
                     logLog("%s has deleted No.%d", username.c_str(), tid);
                     flag = true;
                 }
-                else{
+                else
                     flag = false;
-                }
-
-                if(t) delete t;
-            }else
+            }
+            else
                 flag = false;
 
             return flag;

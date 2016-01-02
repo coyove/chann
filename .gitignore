@@ -28,7 +28,6 @@
 *.app
 
 # Others
-*.db
 *.sdf
 *.pdb
 *.opensdf
@@ -36,13 +35,15 @@
 *.png
 Debug/
 Release/
-images/
-run-server.sh
+images/*
+*.sh
 old/
 cert/
 dump/
 log/*
 db/*
 assets/backups/*
+build/
+chann.conf
 backup.sh
-.idea
+*.unc-backup~

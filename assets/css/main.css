@@ -13,6 +13,9 @@
     z-index: -99;
     font-size: 30px;
 }
+aff {
+  font-family: FontAwesome;
+}
 holder {
     display: block;
     width: 0;

@@ -10,7 +10,7 @@
 
 <!--[if invalid_image]-->无效图像格式<!--[endif]-->
 
-<!--[if more_contents]--><font color='red'><b>&#128065;内容被截取</b></font><!--[endif]-->
+<!--[if more_contents]--><font color='red'><b><aff>&#xf05a;</aff>&nbsp;内容被截取</b></font><!--[endif]-->
 
 <!--[if invalid_thread_no]-->串无效或错误<!--[endif]-->
 

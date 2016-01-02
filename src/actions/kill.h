@@ -5,20 +5,19 @@
 #include <unordered_set>
 
 extern "C" {
-#include "../../lib/unqlite/unqlite.h"
 #include "../../lib/mongoose/mongoose.h"
 }
 
-#include "../general.h"
 #include "../helper.h"
 #include "../config.h"
 #include "../tags.h"
+#include "../data.h"
 
 #include "../views/info.h"
 
 namespace actions{
     namespace kill{
-        bool call(mg_connection *conn, int tid, bool admin = false);
+        bool call(mg_connection *conn, uint32_t tid, bool admin = false);
     }
 }
 

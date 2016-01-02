@@ -116,19 +116,19 @@ function init(){
                 <p style='float:left'><a href='{{HOMEPAGE}}' style='vertical-align:middle'><img id='header-image' src='/assets/images/main.png'></img></a></p>
                 <p style='float:right;margin:1em;'>
                     <span onclick='document.getElementById("input-area").className="";' id='start-new-thread'>
-                        &#128172;&nbsp;发表新串
+                        <aff>&#xf27a;</aff>&nbsp;发表新串
                     </span>&nbsp;
                     <script>
                         if((/(thread|daerht|list)/).test(window.location.href)) document.getElementById('start-new-thread').className='hiding';
                     </script>
                     <span onclick='window.location.href="/list";'>
-                        &#128100;&nbsp;我的记录
+                        <aff>&#xf1da;</aff>&nbsp;我的记录
                     </span>
                     <span onclick='window.location.href="/gallery/1";'>
-                        &#128247;&nbsp;相册
+                        <aff>&#xf03e;</aff>&nbsp;相册
                     </span>
                     <span onclick='window.location.href="/admin";'>
-                        &#128272;&nbsp;管理员
+                        <aff>&#xf0e4;</aff>&nbsp;管理员
                     </span>
                 </p>
                 <br style='clear:both'>

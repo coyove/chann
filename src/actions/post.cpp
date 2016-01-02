@@ -13,7 +13,6 @@ namespace actions{
             return size * nmemb;
         }
 
-
         void call(mg_connection* conn, int post_to){
             bool sage = false;
             bool fileAttached = false;
@@ -25,7 +24,8 @@ namespace actions{
             bool admin_ctrl = is_admin(conn);
             
             string dump_name;
-            if(configs.global().get<bool>("post::dump::raw")){
+            if(configs.global().get<bool>("post::dump::raw"))
+            {
                 dump_name = cc_random_chars(11);
                 cc_write_binary((configs.global().get("post::dump::to") + dump_name).c_str(), conn->content, conn->content_len);
             }
@@ -52,7 +52,6 @@ namespace actions{
                     data_len = data_len > (l) ? (l) : data_len; \
                     strncpy(v, data, data_len); \
                     v[data_len] = 0; }
-
             while ((mofs = mg_parse_multipart(conn->content + ofs, conn->content_len - ofs,
                 var_name, sizeof(var_name),
                 file_name, sizeof(file_name),
@@ -134,7 +133,8 @@ namespace actions{
             if (strcmp(p_title, "") == 0) strcpy(p_title, "untitled");
             if (strstr(p_options, "sage") && configs.global().get<bool>("post::allow_self::sage")) sage = true;
 
-            if (strstr(p_options, "url")){
+            if (strstr(p_options, "url"))
+            {
                 templates.invoke("site_header").toggle("upload_image_page").pipe_to(conn).destory();
                 templates.invoke("info_page").toggle("upload_image_page").var("IMAGE", p_image).pipe_to(conn).destory();
                 templates.invoke("site_footer").var("TIME", 0).pipe_to(conn).destory();
@@ -145,19 +145,18 @@ namespace actions{
             //admin/assist trying to update a thread/reply
             if (strstr(p_options, "update") && 
                 (admin_ctrl || configs.global().get<bool>("security::assist::" + is_assist(conn) + "::update"))){
-                int id = cc_extract_uri_num(conn);
-                struct Thread * t = unq_read_thread(pDb, id); 
+                uint32_t id = cc_extract_uri_num(conn);
+                _Thread th = _Thread::read(id);
 
-                if(!strstr(p_options, "html")){
-                    // string up_str = cc_replace(string(p_content), string("\n"), string("<br>"));
-                    string up_str = cc_htmlify(tmpcontent, false);
-                    unq_write_string(pDb, t->content, up_str.c_str(), true); 
-                }else
-                    unq_write_string(pDb, t->content, p_content.get(), true); 
+                if(!strstr(p_options, "html"))
+                    th.content = cc_htmlify(tmpcontent, false);
+                else
+                    th.content = tmpcontent;
+
+                _Thread::write(th);
 
                 views::info::render(conn, "Thread updated successfully");
-                logLog("Admin (%s) has edited No.%d", is_assist(conn).c_str(), t->threadID);
-                delete t;
+                logLog("Admin (%s) has edited No.%d", is_assist(conn).c_str(), th.no);
 
                 return;
             }
@@ -208,62 +207,70 @@ namespace actions{
             cc_clean_string(tmpname);
             strncpy(p_title, tmpname.c_str(), 64);
 
-            // vector<string> imageDetector = cc_split(tmpcontent, "\n");
-            // tmpcontent = "";
-
-            // for (auto i = 0; i < imageDetector.size(); ++i){
-            //     if (startsWith(imageDetector[i], "http"))
-            //         imageDetector[i] = "<a href='" + imageDetector[i] + "'>" + imageDetector[i] + "</a>";
-            //     bool refFlag = false;
-            //     if (startsWith(imageDetector[i], "&gt;&gt;No.")){
-            //         vector<string> gotoLink = cc_split(imageDetector[i], string("."));
-            //         if (gotoLink.size() == 2){
-            //             imageDetector[i] = "<div class='div-thread-" + gotoLink[1] + "'><a href='javascript:ajst(" + gotoLink[1] + ")'>" + imageDetector[i] + "</a></div>";
-            //             refFlag = true;
-            //         }
-            //     }
-            //     if (startsWith(imageDetector[i], "&gt;"))
-            //         imageDetector[i] = "<ttt>" + imageDetector[i] + "</ttt>";
-
-            //     tmpcontent.append(imageDetector[i] + ((!refFlag) ? "<br/>" : ""));
-            // }
-
-
             const char * cip = cc_get_client_ip(conn);
             logLog("New thread %s (%s) posted by %s as '%s' dumped to '%s'", p_title, p_image, cip, p_options, dump_name.c_str());
 
             if (post_to != 0) {
                 int id = post_to;
-                struct Thread* t = unq_read_thread(pDb, id);
+                _Thread reply_to = _Thread::read(id);
 
-                if(t->state & TOOMANY_REPLIES){
-                    views::info::render(conn, templates.invoke("misc").toggle("cannot_reply_toomany") \
-                            .var("MAX", configs.global().get<int>("user::max_replies")).build_destory().c_str());
-                    delete t;
+                if(reply_to.error)
+                {
+                    views::info::render(conn, templates.invoke("misc").toggle("invalid_thread_no").build_destory().c_str());
                     return;
                 }
 
-                if(t->childThread){
-                    struct Thread* tc = unq_read_thread(pDb, t->childThread);
-                    if(tc->childCount >= configs.global().get<int>("user::max_replies") - 1){
-                        changeState(t, TOOMANY_REPLIES, true);
-                        unq_write_thread(pDb, t->threadID, t, true);
-                    }
-                    delete tc;            
+                //if(t->state & TOOMANY_REPLIES){
+                if(reply_to.state & _Thread::FULL)
+                {
+                    views::info::render(conn, templates.invoke("misc").toggle("cannot_reply_toomany") \
+                            .var("MAX", configs.global().get<int>("user::max_replies")).build_destory().c_str());
+                    return;
                 }
 
-                if(t->state & LOCKED_THREAD)
+                //if(t->childThread)
+                if(reply_to.child)
+                {
+                    //if(tc->childCount >= configs.global().get<int>("user::max_replies") - 1){
+                    if(reply_to.children_count >= (uint32_t)configs.global().get<int>("user::max_replies") - 1)
+                    {
+                        //changeState(t, TOOMANY_REPLIES, true);
+                        reply_to.state &= _Thread::FULL;
+                        //unq_write_thread(pDb, t->threadID, t, true);
+                        _Thread::write(reply_to);
+                    }
+                }
+
+                //if(t->state & LOCKED_THREAD)
+                if(reply_to.state & _Thread::LOCK)
                     views::info::render(conn, templates.invoke("misc").toggle("cannot_reply_locked").build_destory().c_str());
-                else{
-                    unq_new_reply(pDb, id, tmpcontent.c_str(), p_title, cip, username.c_str(), p_image, sage);
-                    
+                else
+                {
+                    //unq_new_reply(pDb, id, tmpcontent.c_str(), p_title, cip, username.c_str(), p_image, sage);
+                    _Thread reply = _Thread::make();
+                    reply.content = tmpcontent;
+                    reply.title = tmpname;
+                    reply.author = username;
+                    reply.ip = std::string(cip);
+                    reply.img = std::string(p_image);
+                    if(sage) reply.state &= _Thread::SAGE;
+
+                    _Thread::append_child(reply_to, reply);
                     mg_printf(conn, "HTTP/1.1 302 Moved Temporarily\r\nLocation: /success/%s/to/%d\r\n\r\n", ssid.c_str(), id);
                 }
-
-                if(t) delete t;
             }
-            else{
-                unq_new_thread(pDb, tmpcontent.c_str(), p_title, cip, username.c_str(), p_image, sage);
+            else
+            {
+                _Thread new_thread = _Thread::make();
+                new_thread.content = tmpcontent;
+                new_thread.title = tmpname;
+                new_thread.author = username;
+                new_thread.ip = std::string(cip);
+                new_thread.img = std::string(p_image);
+                if(sage) new_thread.state += _Thread::SAGE;
+                    
+                _Thread::insert_after(_Thread::read(0), new_thread);
+                //unq_new_thread(pDb, tmpcontent.c_str(), p_title, cip, username.c_str(), p_image, sage);
                 mg_printf(conn, "HTTP/1.1 302 Moved Temporarily\r\nLocation: /success/%s/to/0\r\n\r\n", ssid.c_str());
             }
         }
