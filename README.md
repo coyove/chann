@@ -1,7 +1,7 @@
 [English](#chann-anonymous-imageboard)
 #chann（酱） 匿名版
 
-chann是基于[mongoose](https://github.com/cesanta/mongoose)、[unqlite](http://unqlite.org)的匿名版服务器。
+chann是基于[mongoose](https://github.com/cesanta/mongoose)、[leveldb](https://github.con/google/leveldb)的匿名版服务器。
 
 [Demo](http://chann.org/)托管于Conoha，配置为单核CPU和1G内存的CentOS 7 x64，chann的开发与运营均基于CentOS 7，故以下叙述全部以此版本为准。
 
